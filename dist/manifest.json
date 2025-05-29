@@ -1,0 +1,24 @@
+{
+  "short_name": "Lanlearner",
+  "name": "Lanlearner - Language Learning Companion",
+  "description": "A personal language learning companion (Lanlearner) with AI-powered features for vocabulary building, knowledge acquisition, and spaced repetition.",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable" 
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#e0f2ff",
+  "theme_color": "#6fb7f2",
+  "orientation": "portrait-primary"
+}
