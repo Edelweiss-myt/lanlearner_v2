@@ -1,17 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { WordItem, WordDefinition } from '../../types';
+import { WordItem, WordDefinition, Ebook } from '../../types';
 import { Button } from '../common/Button';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { fetchWordDefinition } from '../../services/geminiService';
-import { findOfflineWord } from '../../offlineDictionary'; 
+import { findOfflineWord, OfflineWord } from '../../offlineDictionary';
+import { findExampleInEbook } from '../../utils/ebookUtils';
 
 interface WordInputFormProps {
   onAddWord: (word: Omit<WordItem, 'id' | 'createdAt' | 'lastReviewedAt' | 'nextReviewAt' | 'srsStage' | 'type'>) => void;
+  ebooks: Ebook[];
+  selectedEbookForLookupId: string | null;
+  onSelectEbookForLookup: (ebookId: string | null) => void;
 }
 
-const API_LOOKUP_TIMEOUT_MS = 10000; // 10 seconds
+const API_LOOKUP_TIMEOUT_MS = 4000; // 4 seconds
 
-export const WordInputForm: React.FC<WordInputFormProps> = ({ onAddWord }) => {
+export const WordInputForm: React.FC<WordInputFormProps> = ({
+  onAddWord,
+  ebooks,
+  selectedEbookForLookupId,
+  onSelectEbookForLookup
+}) => {
   const [wordText, setWordText] = useState('');
   const [currentDefinition, setCurrentDefinition] = useState<WordDefinition | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -23,16 +32,17 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({ onAddWord }) => {
   const [manualPartOfSpeech, setManualPartOfSpeech] = useState('');
   const [manualExample, setManualExample] = useState('');
   const [allowManualInput, setAllowManualInput] = useState(false);
-
-  // To keep track of the active timeout
+  
+  const [ebookExampleSentences, setEbookExampleSentences] = useState<string[]>([]);
+  const [selectedEbookExampleRadioIndex, setSelectedEbookExampleRadioIndex] = useState<number | null>(null);
   const timeoutIdRef = useRef<number | null>(null);
 
   const clearFormStates = (clearWord: boolean = true) => {
-    if (clearWord) setWordText('');
+    if (clearWord) setWordText(''); // This will trigger the useEffect for ebook examples
     setCurrentDefinition(null);
     setError(null);
     setNotes('');
-    setLookupStatusMessage(null);
+    // lookupStatusMessage, ebookExampleSentences, selectedEbookExampleRadioIndex are handled by useEffect or word input onChange
     clearManualFields();
     setAllowManualInput(false);
     if (timeoutIdRef.current) {
@@ -47,6 +57,50 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({ onAddWord }) => {
     setManualExample('');
   };
 
+  // Effect to automatically lookup examples from selected e-book when wordText or selectedEbookForLookupId changes
+  useEffect(() => {
+    const trimmedWord = wordText.trim();
+    let ebookStatus = "";
+
+    if (!trimmedWord || !selectedEbookForLookupId) {
+      setEbookExampleSentences([]);
+      setSelectedEbookExampleRadioIndex(null);
+      if (trimmedWord && !selectedEbookForLookupId) {
+        ebookStatus = "请选择一本电子书以查找例句。";
+      } else if (!trimmedWord && selectedEbookForLookupId) {
+        ebookStatus = "请输入单词以从选定电子书查找例句。";
+      } else {
+        ebookStatus = ""; // Default empty state, no explicit prompt needed unless both are missing
+      }
+      setLookupStatusMessage(ebookStatus);
+      return;
+    }
+
+    const ebookToSearch = ebooks.find(eb => eb.id === selectedEbookForLookupId);
+
+    if (!ebookToSearch || !ebookToSearch.content || ebookToSearch.content.trim().length === 0) {
+      setEbookExampleSentences([]);
+      setSelectedEbookExampleRadioIndex(null);
+      ebookStatus = ebookToSearch ? `选中的电子书 "${ebookToSearch.name}" 内容为空。` : "未找到选中的电子书。";
+      setLookupStatusMessage(ebookStatus);
+      return;
+    }
+
+    const examples = findExampleInEbook(trimmedWord, ebookToSearch.content);
+    setEbookExampleSentences(examples);
+
+    if (examples.length > 0) {
+      setSelectedEbookExampleRadioIndex(0);
+      ebookStatus = `从电子书 "${ebookToSearch.name}" 找到 ${examples.length} 个关于 "${trimmedWord}" 的例句。`;
+    } else {
+      setSelectedEbookExampleRadioIndex(null);
+      ebookStatus = `在电子书 "${ebookToSearch.name}" 中未找到关于 "${trimmedWord}" 的例句。`;
+    }
+    setLookupStatusMessage(ebookStatus);
+
+  }, [wordText, selectedEbookForLookupId, ebooks]);
+
+
   const handleLookupDefinition = async () => {
     const trimmedWord = wordText.trim();
     if (!trimmedWord) {
@@ -58,32 +112,40 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({ onAddWord }) => {
     setCurrentDefinition(null);
     setAllowManualInput(false);
     clearManualFields();
-    setLookupStatusMessage(null);
+    // E-book lookup is now handled by the useEffect above.
+    // lookupStatusMessage should already reflect the e-book search status.
 
-    // Clear any existing timeout
     if (timeoutIdRef.current) {
       clearTimeout(timeoutIdRef.current);
-      timeoutIdRef.current = null;
     }
 
-    // 1. Try offline dictionary first
+    let initialExampleForFields: string | null = null;
+    if (selectedEbookExampleRadioIndex !== null && ebookExampleSentences[selectedEbookExampleRadioIndex]) {
+      initialExampleForFields = ebookExampleSentences[selectedEbookExampleRadioIndex];
+    }
+    
+    let currentLookupStatus = lookupStatusMessage || ""; // Get status from e-book useEffect
+    if (currentLookupStatus.length > 0 && !currentLookupStatus.endsWith(". ") && !currentLookupStatus.endsWith("。 ")) {
+        currentLookupStatus += ". ";
+    }
+
+
     const offlineMatch = findOfflineWord(trimmedWord);
     if (offlineMatch) {
       setCurrentDefinition({
         definition: offlineMatch.chinese,
         partOfSpeech: offlineMatch.partOfSpeech || 'N/A',
-        example: offlineMatch.example || '',
+        example: initialExampleForFields || offlineMatch.example || '',
       });
-      setLookupStatusMessage('释义来自离线词库。');
+      setLookupStatusMessage(currentLookupStatus + '释义来自离线词库。');
       setIsLoading(false);
       return;
     }
 
-    // 2. If not found offline, try API with timeout
-    setLookupStatusMessage('正在在线查询...');
+    setLookupStatusMessage(currentLookupStatus + '正在在线查询释义...');
     try {
       const timeoutPromise = new Promise<WordDefinition>((_, reject) => {
-        timeoutIdRef.current = window.setTimeout(() => { // Use window.setTimeout for clarity in browser env
+        timeoutIdRef.current = window.setTimeout(() => {
           reject(new Error('TIMEOUT'));
         }, API_LOOKUP_TIMEOUT_MS);
       });
@@ -93,7 +155,6 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({ onAddWord }) => {
         timeoutPromise
       ]);
       
-      // Clear timeout if fetchWordDefinition completed first
       if (timeoutIdRef.current) {
         clearTimeout(timeoutIdRef.current);
         timeoutIdRef.current = null;
@@ -102,15 +163,18 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({ onAddWord }) => {
       if (result.error) {
         setError(result.error);
         setAllowManualInput(true);
-        setLookupStatusMessage(`在线查询失败。请手动输入释义，或检查API密钥/网络后重试。`);
+        if (initialExampleForFields) setManualExample(initialExampleForFields);
+        setLookupStatusMessage(currentLookupStatus + `在线查询失败: ${result.error}. 请手动输入释义。`);
       } else {
-        setCurrentDefinition(result);
-        setAllowManualInput(false); // API success, no manual input needed initially
+        setCurrentDefinition({
+          ...result,
+          example: initialExampleForFields || result.example || '',
+        });
+        setAllowManualInput(false);
         clearManualFields();
-        setLookupStatusMessage('释义来自在线查询。');
+        setLookupStatusMessage(currentLookupStatus + '释义来自在线查询。');
       }
     } catch (err: any) {
-      // Clear timeout in case of other errors from fetchWordDefinition itself
       if (timeoutIdRef.current) {
         clearTimeout(timeoutIdRef.current);
         timeoutIdRef.current = null;
@@ -119,20 +183,34 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({ onAddWord }) => {
       let specificError = '查询释义时发生未知错误。';
       if (err.message === 'TIMEOUT') {
         specificError = `在线查询超时（超过 ${API_LOOKUP_TIMEOUT_MS / 1000} 秒）。`;
-        setLookupStatusMessage(`${specificError} 请手动输入释义或稍后重试。`);
       } else if (err instanceof Error) {
         specificError = err.message;
-        setLookupStatusMessage(`在线查询失败。请手动输入释义。 (${specificError})`);
-      } else {
-         setLookupStatusMessage('在线查询失败。请手动输入释义。');
       }
       
       setError(specificError);
       setAllowManualInput(true);
+      if (initialExampleForFields) setManualExample(initialExampleForFields);
+      setLookupStatusMessage(currentLookupStatus + `${specificError} 请手动输入释义。`);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleEbookExampleRadioSelection = (index: number) => {
+    setSelectedEbookExampleRadioIndex(index);
+  };
+  
+  useEffect(() => {
+    if (selectedEbookExampleRadioIndex !== null && ebookExampleSentences[selectedEbookExampleRadioIndex]) {
+      const selectedSentence = ebookExampleSentences[selectedEbookExampleRadioIndex];
+      if (currentDefinition && !allowManualInput) {
+        setCurrentDefinition(prevDef => prevDef ? { ...prevDef, example: selectedSentence } : null);
+      } else if (allowManualInput) {
+        setManualExample(selectedSentence);
+      }
+    }
+  }, [selectedEbookExampleRadioIndex, ebookExampleSentences, currentDefinition, allowManualInput]);
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,65 +222,73 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({ onAddWord }) => {
       return;
     }
 
+    let finalExampleSentence = "";
+    // Prioritize radio selected e-book example
+    if (selectedEbookExampleRadioIndex !== null && ebookExampleSentences[selectedEbookExampleRadioIndex]) {
+        finalExampleSentence = ebookExampleSentences[selectedEbookExampleRadioIndex];
+    }
+    // If not, use example from current definition (API/Offline), which might have been updated by radio selection if it was populated first
+    else if (currentDefinition && currentDefinition.example) {
+        finalExampleSentence = currentDefinition.example;
+    }
+    // Fallback to manual example if manual input is active
+    else if (allowManualInput && manualExample.trim()) {
+        finalExampleSentence = manualExample.trim();
+    }
+
+
     let wordDataToAdd: Omit<WordItem, 'id' | 'createdAt' | 'lastReviewedAt' | 'nextReviewAt' | 'srsStage' | 'type'> | null = null;
 
     if (currentDefinition && currentDefinition.definition && currentDefinition.partOfSpeech) {
-      // Use definition from offline/online lookup
       wordDataToAdd = {
         text: trimmedWordText,
         definition: currentDefinition.definition,
         partOfSpeech: currentDefinition.partOfSpeech,
-        exampleSentence: currentDefinition.example,
+        exampleSentence: finalExampleSentence,
         notes: notes.trim() || undefined,
       };
     } else if (allowManualInput && manualDefinition.trim() && manualPartOfSpeech.trim()) {
-      // Use manual input
       wordDataToAdd = {
         text: trimmedWordText,
         definition: manualDefinition.trim(),
         partOfSpeech: manualPartOfSpeech.trim(),
-        exampleSentence: manualExample.trim(),
+        exampleSentence: finalExampleSentence,
         notes: notes.trim() || undefined,
       };
     } else {
-      // Not enough data to submit
-      if (lookupStatusMessage?.includes('离线')) {
-         setError('离线词库释义不完整。请尝试在线查询或手动填写。');
-      } else if (allowManualInput) {
-        setError('请手动填写释义、词性和例句，或尝试重新查询。');
-      } else {
-        setError('请先查询释义。如果查询失败，请手动填写必填项。');
-      }
+      let formError = '请先查询释义或手动填写必填项。';
+       if (isLoading) {
+           formError = '请等待当前查询操作完成。';
+       } else if (!trimmedWordText) {
+           formError = '请输入单词。';
+       } else if (allowManualInput && (!manualDefinition.trim() || !manualPartOfSpeech.trim())) {
+           formError = '手动输入时，释义和词性为必填项。';
+       } else if (!currentDefinition && !allowManualInput){
+           formError = '请点击“查询释义”按钮。如果查询失败，系统将允许您手动输入。';
+       }
+      setError(formError);
       return;
     }
 
     if (wordDataToAdd) {
       onAddWord(wordDataToAdd);
-      clearFormStates(true); // Clear the whole form including word text
+      clearFormStates(true);
     }
   };
   
-  const isAddDisabled = isLoading || !wordText.trim() || 
-    !( (currentDefinition && currentDefinition.definition && currentDefinition.partOfSpeech) || 
+  const isAddDisabled = isLoading || !wordText.trim() ||
+    !( (currentDefinition && currentDefinition.definition && currentDefinition.partOfSpeech) ||
        (allowManualInput && manualDefinition.trim() && manualPartOfSpeech.trim()) );
 
 
   useEffect(() => {
-    // Reset states if wordText is cleared or significantly changed,
-    // except for the wordText itself.
-    if (wordText === '') {
-      clearFormStates(false); // Don't clear wordText as it's already empty
-    } else {
-        // Optionally, could decide to clear dependent fields if wordText changes
-        // after a lookup. For now, explicit lookup is required.
-    }
-     // Cleanup timeout on component unmount
+    // This effect handles cleanup if the component unmounts while a timeout is pending.
     return () => {
       if (timeoutIdRef.current) {
         clearTimeout(timeoutIdRef.current);
       }
     };
-  }, [wordText]);
+  }, []);
 
 
   return (
@@ -218,10 +304,9 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({ onAddWord }) => {
               id="word"
               value={wordText}
               onChange={(e) => {
-                setWordText(e.target.value);
-                // Clear previous results when word changes to avoid confusion
+                setWordText(e.target.value); // Triggers useEffect for e-book examples
+                // Clear states related to a full lookup of the *previous* word
                 setCurrentDefinition(null);
-                setLookupStatusMessage(null);
                 setError(null);
                 setAllowManualInput(false);
                 clearManualFields();
@@ -239,22 +324,66 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({ onAddWord }) => {
           </div>
         </div>
 
-        {isLoading && <div className="py-4"><LoadingSpinner text={lookupStatusMessage || "正在查询..."} /></div>}
+        { /* E-book related UI elements - they will react to state changes from useEffects */ }
+        <div className="mt-2">
+            <label htmlFor="ebook-select" className="block text-sm font-medium text-gray-700 mb-1">
+              选择电子书查找例句 (可选)
+            </label>
+            <select
+              id="ebook-select"
+              value={selectedEbookForLookupId || ''}
+              onChange={(e) => onSelectEbookForLookup(e.target.value || null)} // Triggers useEffect
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md shadow-sm"
+              disabled={isLoading}
+            >
+              <option value="">不使用电子书</option>
+              {ebooks.map(ebook => (
+                <option key={ebook.id} value={ebook.id}>
+                  {ebook.name}
+                </option>
+              ))}
+            </select>
+        </div>
+
+        {lookupStatusMessage && !isLoading && <p className="text-xs text-indigo-700 mt-1 mb-0 italic">{lookupStatusMessage}</p>}
+        
+        {isLoading && <div className="py-4"><LoadingSpinner text={lookupStatusMessage?.includes("正在在线查询") ? lookupStatusMessage : "处理中..."} /></div>}
         
         {error && !isLoading && <p className="text-sm text-red-600 py-2">{error}</p>}
         
         {currentDefinition && !isLoading && (
           <div className="mt-4 p-4 bg-primary-50 rounded-md border border-primary-200">
-            {lookupStatusMessage && <p className="text-xs text-primary-700 mb-1 italic">{lookupStatusMessage}</p>}
+            {/* lookupStatusMessage is shown globally now */}
             <p><strong>释义：</strong> {currentDefinition.definition}</p>
             <p><strong>词性：</strong> {currentDefinition.partOfSpeech}</p>
-            <p><strong>例句：</strong> {currentDefinition.example || (lookupStatusMessage?.includes("离线") ? <span className="text-gray-500 italic">离线词库未提供例句</span> : <span className="text-gray-500 italic">无例句</span>) }</p>
+            <p><strong>例句：</strong> {currentDefinition.example || (lookupStatusMessage?.includes("离线") && !lookupStatusMessage?.includes("电子书") && ebookExampleSentences.length === 0 ? <span className="text-gray-500 italic">离线词库未提供例句</span> : <span className="text-gray-500 italic">无例句</span>) }</p>
+          </div>
+        )}
+        
+        {ebookExampleSentences.length > 0 && !isLoading && (
+          <div className="mt-3 p-3 bg-indigo-50 rounded-md border border-indigo-200">
+            <h5 className="text-sm font-semibold text-indigo-800 mb-2">来自电子书的例句 ({ebookExampleSentences.length}): 选择一个添加到学习列表</h5>
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {ebookExampleSentences.map((ex, index) => (
+                <label key={index} className="flex items-start p-2 rounded-md hover:bg-indigo-100 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="ebookExample"
+                    value={index}
+                    checked={selectedEbookExampleRadioIndex === index}
+                    onChange={() => handleEbookExampleRadioSelection(index)}
+                    className="form-radio h-4 w-4 text-primary-600 border-gray-300 focus:ring-primary-500 mt-0.5"
+                  />
+                  <span className="ml-2 text-xs text-indigo-700"><em>{ex}</em></span>
+                </label>
+              ))}
+            </div>
           </div>
         )}
 
-        {allowManualInput && !currentDefinition?.definition && !isLoading && ( // Show manual input if API failed AND no successful currentDefinition
+        {allowManualInput && !currentDefinition?.definition && !isLoading && (
           <div className="mt-4 p-4 bg-yellow-50 rounded-md border border-yellow-300 space-y-3">
-            <h4 className="text-sm font-medium text-yellow-800">{lookupStatusMessage || "请手动输入释义信息："}</h4>
+            <h4 className="text-sm font-medium text-yellow-800">{lookupStatusMessage?.includes("在线查询失败") || lookupStatusMessage?.includes("超时") ? lookupStatusMessage : "请手动输入释义信息："}</h4>
             <div>
               <label htmlFor="manual-definition" className="block text-xs font-medium text-gray-700">释义 <span className="text-red-500">*</span></label>
               <input
@@ -285,7 +414,7 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({ onAddWord }) => {
                 value={manualExample}
                 onChange={(e) => setManualExample(e.target.value)}
                 className="mt-1 shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md p-2"
-                placeholder="手动输入例句 (可选)"
+                placeholder="手动输入例句 (可选，或从上方电子书例句选择)"
               ></textarea>
             </div>
           </div>
@@ -311,3 +440,4 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({ onAddWord }) => {
     </div>
   );
 };
+

@@ -10,5 +10,8 @@ export default defineConfig({
   build: {
     outDir: 'dist', // Default output directory
   },
-  publicDir: 'public' // Specify the public directory
+  publicDir: 'public', // Specify the public directory
+  optimizeDeps: {
+    exclude: ['pdfjs-dist', 'epubjs', 'mammoth']
+  }
 })

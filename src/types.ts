@@ -1,4 +1,3 @@
-
 export interface WordDefinition {
   definition: string;
   partOfSpeech: string;
@@ -43,7 +42,7 @@ export enum ActiveTab {
   Learn = '学习',
   Review = '复习',
   Syllabus = '大纲',
-  AiChat = 'AI 助手',
+  AiChat = '',
 }
 
 export interface ChatMessage {
@@ -60,4 +59,10 @@ export interface GroundingChunkWeb {
 }
 export interface GroundingChunk {
   web: GroundingChunkWeb;
+}
+
+export interface Ebook {
+  id: string; // Added for unique identification
+  name: string;
+  content: string; // Full text content of the ebook
 }

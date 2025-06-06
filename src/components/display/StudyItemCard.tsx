@@ -107,6 +107,12 @@ export const StudyItemCard: React.FC<StudyItemCardProps> = ({
             )}
           </>
         )}
+          
+        {item.type === 'word' && onEditItem && !isReviewMode && ( // onEditItem 也需要传递给单词卡片
+              <Button onClick={handleEdit} variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700">
+                  编辑
+              </Button>
+        )}
 
         {showDetails && item.notes && (
           <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">

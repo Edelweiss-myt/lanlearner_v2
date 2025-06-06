@@ -13,18 +13,18 @@ interface ReviewDashboardProps {
   onReviewSessionCompleted: () => void;
   allSyllabusItems?: SyllabusItem[];
   onMoveKnowledgePointCategory?: (itemId: string, newSyllabusId: string | null) => void;
-  onEditKnowledgePoint?: (kp: KnowledgePointItem) => void; 
+  onEditItem?: (item: LearningItem) => void;
 }
 
-export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({ 
-    words, 
-    knowledgePoints, 
-    onUpdateItem, 
-    onDeleteItem, 
+export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
+    words,
+    knowledgePoints,
+    onUpdateItem,
+    onDeleteItem,
     onReviewSessionCompleted,
     allSyllabusItems,
     onMoveKnowledgePointCategory,
-    onEditKnowledgePoint 
+    onEditItem
 }) => {
   const allItems: LearningItem[] = useMemo(() => [...words, ...knowledgePoints], [words, knowledgePoints]);
   
@@ -52,7 +52,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
      return allItems
       .filter(item => item.nextReviewAt && new Date(item.nextReviewAt).toISOString().split('T')[0] > today)
       .sort((a, b) => new Date(a.nextReviewAt!).getTime() - new Date(b.nextReviewAt!).getTime())
-      .slice(0, 5); 
+      .slice(0, 5);
   }, [allItems]);
 
 
@@ -70,7 +70,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
   }, [onUpdateItem]);
 
   const handleForgot = useCallback((item: LearningItem) => {
-    const newSrsStage = 0; 
+    const newSrsStage = 0;
     const nextReviewDate = addDays(getTodayDateString(), SRS_INTERVALS_DAYS[newSrsStage]);
     
     onUpdateItem({
@@ -80,6 +80,12 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
       nextReviewAt: nextReviewDate.toISOString(),
     });
   }, [onUpdateItem]);
+
+  const handleDeleteUpcomingItem = useCallback((itemId: string, itemType: 'word' | 'knowledge') => {
+    // The onDeleteItem prop from App.tsx is expected to be always defined.
+    // This wrapper ensures a stable callback for StudyItemCard instances in upcomingItems list.
+    onDeleteItem(itemId, itemType);
+  }, [onDeleteItem]);
 
   const displayedItems = showAll ? allItems.sort((a,b) => (a.nextReviewAt && b.nextReviewAt) ? new Date(a.nextReviewAt).getTime() - new Date(b.nextReviewAt).getTime() : (a.nextReviewAt ? -1 : 1)) : itemsDueForReview;
 
@@ -103,11 +109,11 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
               item={item}
               onRemembered={handleRemembered}
               onForgot={handleForgot}
-              onDeleteItem={showAll ? onDeleteItem : undefined} 
+              onDeleteItem={showAll ? onDeleteItem : undefined}
               isReviewMode={!showAll || itemsDueForReview.some(dueItem => dueItem.id === item.id)}
-              allSyllabusItems={showAll ? allSyllabusItems : undefined} 
-              onMoveItemCategory={showAll && item.type === 'knowledge' ? onMoveKnowledgePointCategory : undefined} 
-              onEditItem={showAll && item.type === 'knowledge' && onEditKnowledgePoint ? onEditKnowledgePoint as any : undefined}
+              allSyllabusItems={showAll ? allSyllabusItems : undefined}
+              onMoveItemCategory={showAll && item.type === 'knowledge' ? onMoveKnowledgePointCategory : undefined}
+              onEditItem={showAll ? onEditItem : undefined}
             />
           ))}
         </div>
@@ -125,13 +131,13 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
                  <StudyItemCard
                     key={item.id}
                     item={item}
-                    onRemembered={handleRemembered} 
+                    onRemembered={handleRemembered}
                     onForgot={handleForgot}
-                    onDeleteItem={onDeleteItem} 
-                    isReviewMode={false} 
+                    onDeleteItem={handleDeleteUpcomingItem} // Use the memoized handler
+                    isReviewMode={false}
                     allSyllabusItems={allSyllabusItems}
                     onMoveItemCategory={item.type === 'knowledge' ? onMoveKnowledgePointCategory : undefined}
-                    onEditItem={item.type === 'knowledge' && onEditKnowledgePoint ? onEditKnowledgePoint as any : undefined}
+                    onEditItem={onEditItem}
                 />
             ))}
             </div>
@@ -143,3 +149,4 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
     </div>
   );
 };
+
