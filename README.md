@@ -26,28 +26,31 @@ This contains everything you need to run your app locally.
 7. git branch -M main
 8. git push origin main        #此时你的github应该也已更新完成
 
-
+** Netlify **
+npm run build
+dist
 VITE_API_KEY=AIzaSyAY1JopshkJP70BA6YASSw2x8dkyV_AcJk
 
 
 ## Update Online
-if needed, rm package-lock.json, rm -rf node_modules
-npm install
-npm run dev
+    If needed, rm package-lock.json, rm -rf node_modules. 
+1. npm install
+2. npm run dev
    
-npm run build
-git branch
-git add . 
-git commit -m "Your commit message"
-git status  # should be 'no changes added to commit'
-git remote -v   # if incorrect github web, git remote remove origin # git remote add origin https://github.com/Edelweiss-myt/lanlearner_v2.git 
-git push origin main --force-with-lease
-
+3. npm run build
+4. git branch
+5. git add . 
+6. git commit -m "Your commit message"
+7. git status  # should be 'no changes added to commit'
+8. git remote -v   # if incorrect github web, git remote remove origin # git remote add origin https://github.com/Edelweiss-myt/lanlearner_v2.git 
+9. git push origin main --force-with-lease
+    If failed, git branch --set-upstream-to=origin/main main, git pull, git push
 
 
 ### Version Update
-Version 1.1
-    1 '复习' section: 'Add 'Edit' to word, separate 'word' and 'knowledge' when showing all
-    2 Update ebook (format: word, pdf, epub), the examples of added words will be first searched from ebook, then online resources
-    3 Automatically save data excel in browser's saving location every week
+Version 2.1
+    1. '复习' section: 'Add 'Edit' to word, separate 'word' and 'knowledge' when showing all
+    2. Update ebook (format: word, pdf, epub), the examples of added words will be first searched from ebook, then online resources
+    3. Automatically save data excel in browser's saving location every week
+
 
