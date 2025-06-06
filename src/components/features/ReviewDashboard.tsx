@@ -16,6 +16,8 @@ interface ReviewDashboardProps {
   onEditItem?: (item: LearningItem) => void;
 }
 
+type FilterType = 'all' | 'word' | 'knowledge';
+
 export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
     words,
     knowledgePoints,
@@ -29,6 +31,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
   const allItems: LearningItem[] = useMemo(() => [...words, ...knowledgePoints], [words, knowledgePoints]);
   
   const [showAll, setShowAll] = useState(false);
+  const [filterType, setFilterType] = useState<FilterType>('all');
 
   const itemsDueForReview = useMemo(() => {
     const today = getTodayDateString();
@@ -40,11 +43,13 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
   const prevItemsDueCountRef = useRef(itemsDueForReview.length);
 
   useEffect(() => {
-    if (prevItemsDueCountRef.current > 0 && itemsDueForReview.length === 0) {
+    if (prevItemsDueCountRef.current > 0 && itemsDueForReview.length === 0 && !showAll) {
+      // Only trigger session completed if not in "show all" mode,
+      // as "show all" mode is for browsing, not active review session.
       onReviewSessionCompleted();
     }
     prevItemsDueCountRef.current = itemsDueForReview.length;
-  }, [itemsDueForReview.length, onReviewSessionCompleted]);
+  }, [itemsDueForReview.length, onReviewSessionCompleted, showAll]);
 
 
   const upcomingItems = useMemo(() => {
@@ -81,13 +86,18 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
     });
   }, [onUpdateItem]);
 
-  const handleDeleteUpcomingItem = useCallback((itemId: string, itemType: 'word' | 'knowledge') => {
-    // The onDeleteItem prop from App.tsx is expected to be always defined.
-    // This wrapper ensures a stable callback for StudyItemCard instances in upcomingItems list.
-    onDeleteItem(itemId, itemType);
-  }, [onDeleteItem]);
-
-  const displayedItems = showAll ? allItems.sort((a,b) => (a.nextReviewAt && b.nextReviewAt) ? new Date(a.nextReviewAt).getTime() - new Date(b.nextReviewAt).getTime() : (a.nextReviewAt ? -1 : 1)) : itemsDueForReview;
+  const displayedItems = useMemo(() => {
+    if (showAll) {
+      let itemsToDisplay = allItems;
+      if (filterType === 'word') {
+        itemsToDisplay = allItems.filter(item => item.type === 'word');
+      } else if (filterType === 'knowledge') {
+        itemsToDisplay = allItems.filter(item => item.type === 'knowledge');
+      }
+      return itemsToDisplay.sort((a,b) => (a.createdAt && b.createdAt) ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() : (a.createdAt ? -1 : 1)); // Sort by newest first for "Show All"
+    }
+    return itemsDueForReview; // Already sorted by nextReviewAt for due items
+  }, [allItems, itemsDueForReview, showAll, filterType]);
 
   return (
     <div>
@@ -95,11 +105,48 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
         <h3 className="text-xl font-semibold text-gray-700">
           {showAll ? "所有项目" : "今日复习"}
           {!showAll && ` (${itemsDueForReview.length})`}
+          {showAll && ` (${displayedItems.length}${filterType !== 'all' ? ` ${filterType === 'word' ? '单词' : '知识点'}` : ''} / ${allItems.length} 总计)`}
         </h3>
-         <Button onClick={() => setShowAll(!showAll)} variant="ghost">
+         <Button
+            onClick={() => {
+              setShowAll(!showAll);
+              if (showAll) setFilterType('all'); // Reset filter when switching from "Show All" to "Due"
+            }}
+            variant="ghost"
+          >
             {showAll ? `仅显示到期 (${itemsDueForReview.length})` : `显示全部 (${allItems.length})`}
           </Button>
       </div>
+
+      {showAll && (
+        <div className="my-3 flex items-center space-x-2 border-b pb-3 mb-3">
+          <span className="text-sm font-medium text-gray-600">筛选:</span>
+          <Button
+            variant={filterType === 'all' ? 'primary' : 'ghost'}
+            onClick={() => setFilterType('all')}
+            size="sm"
+            aria-pressed={filterType === 'all'}
+          >
+            全部 ({allItems.length})
+          </Button>
+          <Button
+            variant={filterType === 'word' ? 'primary' : 'ghost'}
+            onClick={() => setFilterType('word')}
+            size="sm"
+            aria-pressed={filterType === 'word'}
+          >
+            单词 ({words.length})
+          </Button>
+          <Button
+            variant={filterType === 'knowledge' ? 'primary' : 'ghost'}
+            onClick={() => setFilterType('knowledge')}
+            size="sm"
+            aria-pressed={filterType === 'knowledge'}
+          >
+            知识点 ({knowledgePoints.length})
+          </Button>
+        </div>
+      )}
 
       {displayedItems.length > 0 ? (
         <div className="space-y-4">
@@ -109,17 +156,17 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
               item={item}
               onRemembered={handleRemembered}
               onForgot={handleForgot}
-              onDeleteItem={showAll ? onDeleteItem : undefined}
-              isReviewMode={!showAll || itemsDueForReview.some(dueItem => dueItem.id === item.id)}
-              allSyllabusItems={showAll ? allSyllabusItems : undefined}
+              onDeleteItem={showAll ? onDeleteItem : undefined} // Only allow delete in "Show All" mode
+              isReviewMode={!showAll && itemsDueForReview.some(dueItem => dueItem.id === item.id)} // Review mode if not showAll AND item is due
+              allSyllabusItems={allSyllabusItems} // Pass allSyllabusItems for KP category display/move
               onMoveItemCategory={showAll && item.type === 'knowledge' ? onMoveKnowledgePointCategory : undefined}
-              onEditItem={showAll ? onEditItem : undefined}
+              onEditItem={showAll ? onEditItem : undefined} // Only allow edit in "Show All" mode
             />
           ))}
         </div>
       ) : (
         <p className="text-gray-600">
-            {showAll ? "尚未添加任何项目。开始学习新内容吧！" : "目前没有到期的复习项。太棒了！🎉"}
+            {showAll ? (filterType === 'all' ? "尚未添加任何项目。开始学习新内容吧！" : `没有符合当前筛选条件的${filterType === 'word' ? '单词' : '知识点'}。`) : "目前没有到期的复习项。太棒了！🎉"}
         </p>
       )}
       
@@ -128,12 +175,12 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
             <h4 className="text-lg font-medium text-gray-600 mb-2">即将复习 (接下来5个):</h4>
             <div className="space-y-3">
             {upcomingItems.map(item => (
-                 <StudyItemCard
+                 <StudyItemCard // Upcoming items are not in "review mode" but can be viewed/edited/deleted
                     key={item.id}
                     item={item}
                     onRemembered={handleRemembered}
                     onForgot={handleForgot}
-                    onDeleteItem={handleDeleteUpcomingItem} // Use the memoized handler
+                    onDeleteItem={onDeleteItem}
                     isReviewMode={false}
                     allSyllabusItems={allSyllabusItems}
                     onMoveItemCategory={item.type === 'knowledge' ? onMoveKnowledgePointCategory : undefined}
@@ -149,4 +196,3 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
     </div>
   );
 };
-

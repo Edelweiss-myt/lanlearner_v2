@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { ActiveTab, WordItem, KnowledgePointItem, SyllabusItem, ChatMessage, LearningItem, Ebook } from './types';
 import { Header } from './components/layout/Header';
@@ -15,7 +16,7 @@ import { addDays, getTodayDateString } from './utils/dateUtils';
 import { SRS_INTERVALS_DAYS, SYLLABUS_ROOT_ID } from './constants';
 import { getStoredData, storeData } from './services/storageService';
 import { generateId } from './utils/miscUtils';
-import { exportDataToExcel } from './utils/exportUtils';
+import { exportDataToExcel, exportDataToExcelAutomatic } from './utils/exportUtils';
 import { importDataFromExcel } from './utils/importUtils';
 import { parsePdfToText, parseDocxToText, parseEpubToText } from './utils/ebookUtils';
 
@@ -99,6 +100,52 @@ const App: React.FC = () => {
     };
     loadData();
   }, []);
+
+  // Automatic Weekly Data Export Effect
+  useEffect(() => {
+    if (isTrulyLoading) return; // Don't run if initial data is still loading
+
+    const LAST_AUTO_EXPORT_KEY = 'lastAutoExportDate';
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+    const lastExportDateStr = getStoredData<string | null>(LAST_AUTO_EXPORT_KEY, null);
+    const today = new Date();
+    const todayDateString = today.toISOString().split('T')[0]; // YYYY-MM-DD
+
+    let shouldExport = false;
+    if (!lastExportDateStr) {
+      // If no record of last export, and there's data, schedule an export.
+      // Also set the date to prevent immediate re-export if data is added shortly after.
+      shouldExport = true;
+    } else {
+      const lastExportDate = new Date(lastExportDateStr);
+      if (today.getTime() - lastExportDate.getTime() >= SEVEN_DAYS_MS) {
+        shouldExport = true;
+      }
+    }
+
+    if (shouldExport) {
+      if (words.length > 0 || knowledgePoints.length > 0 || syllabus.length > 0) {
+        try {
+          console.log("Attempting automatic data export...");
+          exportDataToExcelAutomatic(words, knowledgePoints, syllabus);
+          storeData(LAST_AUTO_EXPORT_KEY, todayDateString);
+          console.log(`Automatic backup successful. Next check in 7 days.`);
+        } catch (e) {
+          console.error("Automatic data export failed:", e);
+        }
+      } else {
+        // console.log("Data is empty. Skipping auto export.");
+        // If it was supposed to be the first export (no lastExportDateStr) and data is empty,
+        // still update the date to prevent constant checks on every load until data is added.
+        if (!lastExportDateStr) {
+            storeData(LAST_AUTO_EXPORT_KEY, todayDateString);
+            // console.log("Initial auto-export check: data empty, date marker set for next 7-day cycle.");
+        }
+      }
+    }
+  }, [words, knowledgePoints, syllabus, isTrulyLoading]);
+
 
   const handleEditItem = (item: LearningItem) => {
       if (item.type === 'knowledge') {
@@ -392,10 +439,10 @@ const App: React.FC = () => {
               onDeleteKnowledgePoint={deleteStudyItem}
               onMoveKnowledgePointCategory={handleMoveKnowledgePointCategory}
               onEditItem={handleEditItem}
-              ebooks={ebooks} // Changed from activeEbook
+              ebooks={ebooks}
               ebookImportStatus={ebookImportStatus}
               onUploadEbook={handleEbookUpload}
-              onDeleteEbook={handleDeleteEbook} // Changed from onClearEbook
+              onDeleteEbook={handleDeleteEbook}
             />
           )}
           {activeTab === ActiveTab.AiChat && (

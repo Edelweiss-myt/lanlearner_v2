@@ -1,3 +1,4 @@
+
 import * as XLSX from 'xlsx';
 import { WordItem, KnowledgePointItem, SyllabusItem } from '../types';
 import { formatDate } from './dateUtils';
@@ -37,10 +38,12 @@ const getSyllabusPath = (
   return pathParts.length > 0 ? pathParts.join(SYLLABUS_PATH_SEPARATOR) : '未分类';
 };
 
-export const exportDataToExcel = (
+// Core export logic
+const createWorkbookAndDownload = (
   words: WordItem[],
   knowledgePoints: KnowledgePointItem[],
-  syllabusItems: SyllabusItem[]
+  syllabusItems: SyllabusItem[],
+  filename: string
 ): void => {
   // Prepare Words Sheet
   const wordsData = words.map(word => ({
@@ -75,7 +78,26 @@ export const exportDataToExcel = (
   XLSX.utils.book_append_sheet(workbook, knowledgePointsSheet, '知识点');
 
   // Trigger Download
+  XLSX.writeFile(workbook, filename);
+};
+
+
+export const exportDataToExcel = (
+  words: WordItem[],
+  knowledgePoints: KnowledgePointItem[],
+  syllabusItems: SyllabusItem[]
+): void => {
   const today = new Date();
   const dateString = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
-  XLSX.writeFile(workbook, `LinguaLeap_学习数据_${dateString}.xlsx`);
+  const filename = `LinguaLeap_学习数据_${dateString}.xlsx`;
+  createWorkbookAndDownload(words, knowledgePoints, syllabusItems, filename);
+};
+
+export const exportDataToExcelAutomatic = (
+  words: WordItem[],
+  knowledgePoints: KnowledgePointItem[],
+  syllabusItems: SyllabusItem[]
+): void => {
+  const filename = `LinguaLeap_AutoBackup.xlsx`;
+  createWorkbookAndDownload(words, knowledgePoints, syllabusItems, filename);
 };

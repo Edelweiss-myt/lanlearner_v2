@@ -13,7 +13,7 @@ interface WordInputFormProps {
   onSelectEbookForLookup: (ebookId: string | null) => void;
 }
 
-const API_LOOKUP_TIMEOUT_MS = 4000; // 4 seconds
+const API_LOOKUP_TIMEOUT_MS = 10000; // Increased from 4000 to 10000 (10 seconds)
 
 export const WordInputForm: React.FC<WordInputFormProps> = ({
   onAddWord,
