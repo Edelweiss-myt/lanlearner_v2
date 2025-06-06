@@ -33,11 +33,18 @@ VITE_API_KEY=AIzaSyAY1JopshkJP70BA6YASSw2x8dkyV_AcJk
 
 
 ## Update Online
-
+npm run build
+git branch
+git add . 
+git commit -m "Your commit message"
+git status  # should be 'no changes added to commit'
+git remote -v   # if incorrect github web, git remote remove origin
+git remote add origin https://github.com/Edelweiss-myt/lanlearner_v1.git 
+git push origin main --force-with-lease
 
 
 
 ### Version Update
-# 2025.06.06
-1 Add 'Edit' to word
-2 Update ebook (format: word, pdf, epub), the examples of added words will be first searched from ebook, then online resources
+Version 1.1
+    1 Add 'Edit' to word
+    2 Update ebook (format: word, pdf, epub), the examples of added words will be first searched from ebook, then online resources

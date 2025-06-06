@@ -3,7 +3,7 @@ import { WordItem, WordDefinition, Ebook } from '../../types';
 import { Button } from '../common/Button';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { fetchWordDefinition } from '../../services/geminiService';
-import { findOfflineWord, OfflineWord } from '../../offlineDictionary';
+import { findOfflineWord } from '../../offlineDictionary';
 import { findExampleInEbook } from '../../utils/ebookUtils';
 
 interface WordInputFormProps {
@@ -440,4 +440,3 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({
     </div>
   );
 };
-
