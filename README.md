@@ -33,8 +33,8 @@ VITE_API_KEY=AIzaSyAY1JopshkJP70BA6YASSw2x8dkyV_AcJk
 
 
 ## Update Online
-    If needed, rm package-lock.json, rm -rf node_modules. 
-1. npm install
+
+1. # If needed, npm install , rm package-lock.json, rm -rf node_modules
 2. npm run dev
    
 3. npm run build
@@ -48,9 +48,11 @@ VITE_API_KEY=AIzaSyAY1JopshkJP70BA6YASSw2x8dkyV_AcJk
 
 
 ### Version Update
-Version 2.1
-    1. '复习' section: 'Add 'Edit' to word, separate 'word' and 'knowledge' when showing all
-    2. Update ebook (format: word, pdf, epub), the examples of added words will be first searched from ebook, then online resources
-    3. Automatically save data excel in browser's saving location every week
-
-
+1. '复习' section: 'Add 'Edit' to word, separate 'word' and 'knowledge' when showing all
+2. Update ebook (format: word, pdf, epub), the examples of added words will be first searched from ebook, then online resources
+3. Automatically save data excel in browser's saving location every week
+4. ‘复习-显示全部-单词’分栏添加查询框 (如输入‘a’，则显示所有a开头的单词）
+5. 导入数据时防止冗余（以标题为参照，重复内容以更久的日期为准）
+6. 单词释义例句查询/选取后可编辑
+7. 定义在书中查到>5 标记处，标记为高频词，单词颜色设置为深红色
+8. 24h内删除的记录可追回，‘最近删除’按钮放在底栏

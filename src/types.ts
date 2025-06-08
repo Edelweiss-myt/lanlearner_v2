@@ -1,3 +1,4 @@
+
 export interface WordDefinition {
   definition: string;
   partOfSpeech: string;
@@ -66,3 +67,9 @@ export interface Ebook {
   name: string;
   content: string; // Full text content of the ebook
 }
+
+export interface RecentlyDeletedItem {
+  item: LearningItem;
+  deletedAt: string;
+}
+

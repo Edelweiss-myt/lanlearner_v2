@@ -1,6 +1,5 @@
-
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { ActiveTab, WordItem, KnowledgePointItem, SyllabusItem, ChatMessage, LearningItem, Ebook } from './types';
+import { ActiveTab, WordItem, KnowledgePointItem, SyllabusItem, ChatMessage, LearningItem, Ebook, RecentlyDeletedItem } from './types';
 import { Header } from './components/layout/Header';
 import { WordInputForm } from './components/inputs/WordInputForm';
 import { KnowledgePointInputForm } from './components/inputs/KnowledgePointInputForm';
@@ -12,6 +11,7 @@ import { Button } from './components/common/Button';
 import { InitialSelectionScreen } from './components/layout/InitialSelectionScreen';
 import { EditKnowledgePointModal } from './components/inputs/EditKnowledgePointModal';
 import { EditWordModal } from './components/display/EditWordModal';
+import { RecentlyDeletedModal } from './components/modals/RecentlyDeletedModal'; // New Modal
 import { addDays, getTodayDateString } from './utils/dateUtils';
 import { SRS_INTERVALS_DAYS, SYLLABUS_ROOT_ID } from './constants';
 import { getStoredData, storeData } from './services/storageService';
@@ -22,6 +22,8 @@ import { parsePdfToText, parseDocxToText, parseEpubToText } from './utils/ebookU
 
 
 type AppState = 'loading' | 'selection' | 'main';
+
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>('loading');
@@ -39,10 +41,12 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
 
-  // E-book state
   const [ebooks, setEbooks] = useState<Ebook[]>([]);
   const [selectedEbookForLookupId, setSelectedEbookForLookupId] = useState<string | null>(null);
   const [ebookImportStatus, setEbookImportStatus] = useState<string | null>(null);
+
+  const [recentlyDeletedItems, setRecentlyDeletedItems] = useState<RecentlyDeletedItem[]>([]);
+  const [isRecentlyDeletedModalOpen, setIsRecentlyDeletedModalOpen] = useState(false);
 
 
   const itemsDueForReview = useMemo(() => {
@@ -58,11 +62,23 @@ const App: React.FC = () => {
       const loadedWords = getStoredData<WordItem[]>('words', []);
       const loadedKnowledgePoints = getStoredData<KnowledgePointItem[]>('knowledgePoints', []);
       const storedSyllabus = getStoredData<SyllabusItem[]>('syllabus', []);
+      const loadedRecentlyDeleted = getStoredData<RecentlyDeletedItem[]>('recentlyDeleted', []);
       
       setWords(loadedWords);
       setKnowledgePoints(loadedKnowledgePoints);
       setEbooks(getStoredData<Ebook[]>('ebooksLibrary', []));
       setSelectedEbookForLookupId(getStoredData<string | null>('selectedEbookForLookupId', null));
+
+      // Clean up old recently deleted items
+      const now = Date.now();
+      const freshRecentlyDeleted = loadedRecentlyDeleted.filter(
+        rd => (now - new Date(rd.deletedAt).getTime()) < TWENTY_FOUR_HOURS_MS
+      );
+      setRecentlyDeletedItems(freshRecentlyDeleted);
+      if (freshRecentlyDeleted.length !== loadedRecentlyDeleted.length) {
+        storeData('recentlyDeleted', freshRecentlyDeleted);
+      }
+
 
       if (storedSyllabus.length === 0 || !storedSyllabus.find(item => item.id === SYLLABUS_ROOT_ID)) {
         const newSyllabusBase: SyllabusItem[] = [
@@ -101,21 +117,18 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
-  // Automatic Weekly Data Export Effect
   useEffect(() => {
-    if (isTrulyLoading) return; // Don't run if initial data is still loading
+    if (isTrulyLoading) return;
 
     const LAST_AUTO_EXPORT_KEY = 'lastAutoExportDate';
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
     const lastExportDateStr = getStoredData<string | null>(LAST_AUTO_EXPORT_KEY, null);
     const today = new Date();
-    const todayDateString = today.toISOString().split('T')[0]; // YYYY-MM-DD
+    const todayDateString = today.toISOString().split('T')[0];
 
     let shouldExport = false;
     if (!lastExportDateStr) {
-      // If no record of last export, and there's data, schedule an export.
-      // Also set the date to prevent immediate re-export if data is added shortly after.
       shouldExport = true;
     } else {
       const lastExportDate = new Date(lastExportDateStr);
@@ -135,12 +148,8 @@ const App: React.FC = () => {
           console.error("Automatic data export failed:", e);
         }
       } else {
-        // console.log("Data is empty. Skipping auto export.");
-        // If it was supposed to be the first export (no lastExportDateStr) and data is empty,
-        // still update the date to prevent constant checks on every load until data is added.
         if (!lastExportDateStr) {
             storeData(LAST_AUTO_EXPORT_KEY, todayDateString);
-            // console.log("Initial auto-export check: data empty, date marker set for next 7-day cycle.");
         }
       }
     }
@@ -188,6 +197,11 @@ const App: React.FC = () => {
     storeData('selectedEbookForLookupId', id);
   }, []);
 
+  const persistRecentlyDeletedItems = useCallback((updatedItems: RecentlyDeletedItem[]) => {
+    setRecentlyDeletedItems(updatedItems);
+    storeData('recentlyDeleted', updatedItems);
+  }, []);
+
 
   const handleEbookUpload = async (file: File) => {
     if (!file) return;
@@ -217,10 +231,10 @@ const App: React.FC = () => {
       if (textContent && textContent.trim().length > 0) {
         const newEbook: Ebook = { id: newEbookId, name: file.name, content: textContent };
         persistEbooks([...ebooks, newEbook]);
-        persistSelectedEbookForLookupId(newEbookId); // Auto-select new e-book
+        persistSelectedEbookForLookupId(newEbookId);
         setEbookImportStatus(`电子书 "${file.name}" 已成功添加到您的书库并被选中！现在可以在添加单词时用于查找例句。`);
       } else {
-         const newEbook: Ebook = { id: newEbookId, name: file.name, content: "" }; // Store name but indicate no content
+         const newEbook: Ebook = { id: newEbookId, name: file.name, content: "" };
          persistEbooks([...ebooks, newEbook]);
          setEbookImportStatus(`电子书 "${file.name}" 已添加到书库，但未能解析出文本内容或内容为空。`);
       }
@@ -307,12 +321,42 @@ const App: React.FC = () => {
   };
   
   const deleteStudyItem = useCallback((itemId: string, itemType: 'word' | 'knowledge') => {
-    if (itemType === 'word') {
-      persistWords(words.filter(w => w.id !== itemId));
-    } else {
-      persistKnowledgePoints(knowledgePoints.filter(kp => kp.id !== itemId));
+    let itemToDelete: LearningItem | undefined;
+    const itemIdentifier = itemType === 'word'
+        ? words.find(w => w.id === itemId)?.text
+        : knowledgePoints.find(kp => kp.id === itemId)?.title;
+
+    const confirmMessage = `您确定要删除这个${itemType === 'word' ? '单词' : '知识点'}：“${itemIdentifier || '未知项目'}”吗？此项目将被移至“最近删除”，可在24小时内恢复。`;
+    
+    if (window.confirm(confirmMessage)) {
+        if (itemType === 'word') {
+          itemToDelete = words.find(w => w.id === itemId);
+          if (itemToDelete) persistWords(words.filter(w => w.id !== itemId));
+        } else {
+          itemToDelete = knowledgePoints.find(kp => kp.id === itemId);
+          if (itemToDelete) persistKnowledgePoints(knowledgePoints.filter(kp => kp.id !== itemId));
+        }
+
+        if (itemToDelete) {
+          const newRecentlyDeletedItem: RecentlyDeletedItem = {
+            item: itemToDelete,
+            deletedAt: new Date().toISOString(),
+          };
+          persistRecentlyDeletedItems([...recentlyDeletedItems, newRecentlyDeletedItem]);
+        }
     }
-  }, [words, knowledgePoints, persistWords, persistKnowledgePoints]);
+  }, [words, knowledgePoints, recentlyDeletedItems, persistWords, persistKnowledgePoints, persistRecentlyDeletedItems]);
+
+  const restoreStudyItem = useCallback((deletedItemRecord: RecentlyDeletedItem) => {
+    const { item } = deletedItemRecord;
+    if (item.type === 'word') {
+      persistWords([...words, item as WordItem]);
+    } else {
+      persistKnowledgePoints([...knowledgePoints, item as KnowledgePointItem]);
+    }
+    persistRecentlyDeletedItems(recentlyDeletedItems.filter(rd => rd.item.id !== item.id));
+  }, [words, knowledgePoints, recentlyDeletedItems, persistWords, persistKnowledgePoints, persistRecentlyDeletedItems]);
+
 
   const handleMoveKnowledgePointCategory = useCallback((itemId: string, newSyllabusId: string | null) => {
     const updatedKps = knowledgePoints.map(kp =>
@@ -344,7 +388,7 @@ const App: React.FC = () => {
   };
 
   const handleInitiateImport = () => {
-    if (window.confirm("导入 Excel 文件将向您当前的数据中添加新的单词和知识点，并可能创建新的大纲分类。现有数据不会被删除。确定要继续吗？\n\n请确保 Excel 文件包含名为 '单词' 和/或 '知识点' 的工作表，且列名符合预期格式。")) {
+    if (window.confirm("导入 Excel 文件将向您当前的数据中添加新的单词和知识点（如果它们尚不存在），并可能创建新的大纲分类。现有数据不会被删除或覆盖，重复项将根据标题/单词文本被跳过。确定要继续吗？\n\n请确保 Excel 文件包含名为 '单词' 和/或 '知识点' 的工作表，且列名符合预期格式。")) {
         fileInputRef.current?.click();
     }
   };
@@ -355,7 +399,8 @@ const App: React.FC = () => {
 
     setImportMessage("正在导入数据...");
     try {
-      const { importedWords, importedKnowledgePoints, newlyCreatedSyllabusItems, message } = await importDataFromExcel(file, syllabus, generateId);
+      const { importedWords: newWordsFromExcel, importedKnowledgePoints: newKpsFromExcel, newlyCreatedSyllabusItems, message } =
+        await importDataFromExcel(file, syllabus, generateId, words, knowledgePoints);
 
       if (newlyCreatedSyllabusItems.length > 0) {
         const currentSyllabusIds = new Set(syllabus.map(s => s.id));
@@ -365,11 +410,11 @@ const App: React.FC = () => {
         }
       }
 
-      if (importedWords.length > 0) {
-        persistWords([...words, ...importedWords]);
+      if (newWordsFromExcel.length > 0) {
+        persistWords([...words, ...newWordsFromExcel]);
       }
-      if (importedKnowledgePoints.length > 0) {
-        persistKnowledgePoints([...knowledgePoints, ...importedKnowledgePoints]);
+      if (newKpsFromExcel.length > 0) {
+        persistKnowledgePoints([...knowledgePoints, ...newKpsFromExcel]);
       }
       setImportMessage(message);
       
@@ -427,6 +472,8 @@ const App: React.FC = () => {
               allSyllabusItems={syllabus}
               onMoveKnowledgePointCategory={handleMoveKnowledgePointCategory}
               onEditItem={handleEditItem}
+              ebooks={ebooks}
+              selectedEbookForLookupId={selectedEbookForLookupId}
             />
           )}
           {activeTab === ActiveTab.Syllabus && (
@@ -461,6 +508,9 @@ const App: React.FC = () => {
             <Button onClick={handleInitiateImport} variant="ghost" size="sm">
               导入数据 (Excel)
             </Button>
+            <Button onClick={() => setIsRecentlyDeletedModalOpen(true)} variant="ghost" size="sm">
+              最近删除
+            </Button>
             <input
                 type="file"
                 ref={fileInputRef}
@@ -488,7 +538,17 @@ const App: React.FC = () => {
           word={editingWord}
           onSave={handleSaveEditedWord}
             />
+      )}
+      {isRecentlyDeletedModalOpen && (
+        <RecentlyDeletedModal
+          isOpen={isRecentlyDeletedModalOpen}
+          onClose={() => setIsRecentlyDeletedModalOpen(false)}
+          recentlyDeletedItems={recentlyDeletedItems.filter(
+            rd => (Date.now() - new Date(rd.deletedAt).getTime()) < TWENTY_FOUR_HOURS_MS
           )}
+          onRestoreItem={restoreStudyItem}
+        />
+      )}
     </div>
   );
 };

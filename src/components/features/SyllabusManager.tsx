@@ -4,6 +4,7 @@ import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { SYLLABUS_ROOT_ID } from '../../constants';
 import { StudyItemCard } from '../display/StudyItemCard';
+import { findExampleInEbook } from '../../utils/ebookUtils'; // Added import
 
 interface SyllabusManagerProps {
   syllabusItems: SyllabusItem[];
@@ -15,10 +16,10 @@ interface SyllabusManagerProps {
   onMoveKnowledgePointCategory?: (itemId: string, newSyllabusId: string | null) => void;
   onEditItem?: (item: LearningItem) => void;
   // E-book related props
-  ebooks: Ebook[]; // Changed from activeEbook
+  ebooks: Ebook[];
   ebookImportStatus: string | null;
   onUploadEbook: (file: File) => Promise<void>;
-  onDeleteEbook: (ebookId: string) => void; // Changed from onClearEbook
+  onDeleteEbook: (ebookId: string) => void;
 }
 
 interface EditableSyllabusItem {
@@ -39,10 +40,10 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
     onDeleteKnowledgePoint,
     onMoveKnowledgePointCategory,
     onEditItem,
-    ebooks, // Changed
+    ebooks,
     ebookImportStatus,
     onUploadEbook,
-    onDeleteEbook // Changed
+    onDeleteEbook
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<EditableSyllabusItem | null>(null);
@@ -195,6 +196,8 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
                 allSyllabusItems={syllabusItems}
                 onMoveItemCategory={onMoveKnowledgePointCategory}
                 onEditItem={onEditItem}
+                selectedEbookContent={null}
+                findExampleInEbook={findExampleInEbook}
               />
             ))}
             </div>

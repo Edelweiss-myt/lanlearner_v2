@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { WordItem, KnowledgePointItem, SyllabusItem } from '../types';
+// import { generateId as defaultGenerateId } from './miscUtils'; // REMOVED - Unused
 import { addDays, getTodayDateString } from './dateUtils';
 import { SRS_INTERVALS_DAYS, SYLLABUS_PATH_SEPARATOR, SYLLABUS_ROOT_ID } from '../constants';
 
@@ -30,7 +31,9 @@ const KP_HEADERS = {
 export const importDataFromExcel = async (
   file: File,
   existingSyllabusItems: SyllabusItem[],
-  generateId: () => string // Allow generateId to be passed in for testing or specific ID generation strategies
+  generateId: () => string, // Allow generateId to be passed in for testing or specific ID generation strategies
+  existingWords: WordItem[],
+  existingKnowledgePoints: KnowledgePointItem[]
 ): Promise<ImportResult> => {
   const importedWords: WordItem[] = [];
   const importedKnowledgePoints: KnowledgePointItem[] = [];
@@ -38,9 +41,11 @@ export const importDataFromExcel = async (
   let kpsAdded = 0;
   let wordsSkipped = 0;
   let kpsSkipped = 0;
+  let wordsSkippedDuplicates = 0;
+  let kpsSkippedDuplicates = 0;
+
 
   const newItemsGeneratedThisImportSession: SyllabusItem[] = [];
-  // currentSyllabusStateForLookup starts as a copy and grows with items created in this session.
   const currentSyllabusStateForLookup = [...existingSyllabusItems];
 
 
@@ -50,14 +55,14 @@ export const importDataFromExcel = async (
     }
 
     const pathParts = pathString.split(SYLLABUS_PATH_SEPARATOR).map(part => part.trim()).filter(part => part.length > 0);
-    let currentParentId: string | null = null; // Root items have null parentId
+    let currentParentId: string | null = null;
     let lastProcessedItemId: string | null = null;
 
     for (const partTitle of pathParts) {
       let foundItem = currentSyllabusStateForLookup.find(
-        item => item.title.toLowerCase() === partTitle.toLowerCase() && 
-                item.parentId === currentParentId && 
-                item.id !== SYLLABUS_ROOT_ID // Don't match the conceptual root "所有主题" by title path
+        item => item.title.toLowerCase() === partTitle.toLowerCase() &&
+                item.parentId === currentParentId &&
+                item.id !== SYLLABUS_ROOT_ID
       );
 
       if (!foundItem) {
@@ -70,18 +75,11 @@ export const importDataFromExcel = async (
         
         currentSyllabusStateForLookup.push(newItem);
 
-        const isTrulyNew = !existingSyllabusItems.some(eItem => eItem.id === newItem.id); // Check against original list
+        const isTrulyNew = !existingSyllabusItems.some(eItem => eItem.id === newItem.id);
         const notYetAccumulated = !newItemsGeneratedThisImportSession.some(nItem => nItem.id === newItem.id);
 
         if (isTrulyNew && notYetAccumulated) {
              newItemsGeneratedThisImportSession.push(newItem);
-        } else if (!isTrulyNew && notYetAccumulated && existingSyllabusItems.some(eItem => eItem.id === newItem.id)) {
-            // This case means an ID collision happened, and an existing item was "re-created" by generateId.
-            // This should be extremely rare if generateId is robust.
-            // Or, it means the item was already created earlier in this same import session and pushed to currentSyllabusStateForLookup,
-            // but its ID was also present in `existingSyllabusItems`. This needs careful thought.
-            // The primary goal is: `newItemsGeneratedThisImportSession` must only contain items that were NOT in `existingSyllabusItems` at the start.
-            // The current logic: `isTrulyNew` handles this.
         }
         
         lastProcessedItemId = newId;
@@ -116,10 +114,16 @@ export const importDataFromExcel = async (
             const text = row[WORD_HEADERS.TEXT]?.toString().trim();
             const definition = row[WORD_HEADERS.DEFINITION]?.toString().trim();
             const partOfSpeech = row[WORD_HEADERS.PART_OF_SPEECH]?.toString().trim();
-            // Allow example to be optional for words
-            const exampleSentence = row[WORD_HEADERS.EXAMPLE]?.toString().trim() || ''; 
+            const exampleSentence = row[WORD_HEADERS.EXAMPLE]?.toString().trim() || '';
 
-            if (text && definition && partOfSpeech) { // Example is not strictly required here
+            if (text && definition && partOfSpeech) {
+              // Check for duplicates based on word text (case-insensitive)
+              const isDuplicate = existingWords.some(w => w.text.toLowerCase() === text.toLowerCase());
+              if (isDuplicate) {
+                wordsSkippedDuplicates++;
+                return; // Skip this duplicate word
+              }
+
               const newWord: WordItem = {
                 id: generateId(),
                 type: 'word',
@@ -156,6 +160,13 @@ export const importDataFromExcel = async (
             const categoryPath = row[KP_HEADERS.CATEGORY]?.toString().trim();
 
             if (title && content) {
+              // Check for duplicates based on KP title (case-insensitive)
+              const isDuplicate = existingKnowledgePoints.some(kp => kp.title.toLowerCase() === title.toLowerCase());
+              if (isDuplicate) {
+                kpsSkippedDuplicates++;
+                return; // Skip this duplicate KP
+              }
+
               const syllabusItemId = ensureSyllabusPath(categoryPath);
 
               const newKp: KnowledgePointItem = {
@@ -182,10 +193,18 @@ export const importDataFromExcel = async (
         }
         
         let message = "导入完成。\n";
-        if(wordsSheetName) message += `单词: ${wordsAdded} 添加, ${wordsSkipped} 跳过。\n`;
-        if(kpsSheetName) message += `知识点: ${kpsAdded} 添加, ${kpsSkipped} 跳过.`;
-        if(newItemsGeneratedThisImportSession.length > 0) message += `\n新创建了 ${newItemsGeneratedThisImportSession.length} 个大纲分类。`;
-        if(!wordsSheetName && !kpsSheetName) message = "未找到 '单词' 或 '知识点' 工作表。未导入任何数据。";
+        if (wordsSheetName) {
+            message += `单词: ${wordsAdded} 添加, ${wordsSkipped} 因字段缺失跳过, ${wordsSkippedDuplicates} 因重复跳过。\n`;
+        }
+        if (kpsSheetName) {
+            message += `知识点: ${kpsAdded} 添加, ${kpsSkipped} 因字段缺失跳过, ${kpsSkippedDuplicates} 因重复跳过。\n`;
+        }
+        if (newItemsGeneratedThisImportSession.length > 0) {
+            message += `新创建了 ${newItemsGeneratedThisImportSession.length} 个大纲分类。`;
+        }
+        if (!wordsSheetName && !kpsSheetName) {
+            message = "未找到 '单词' 或 '知识点' 工作表。未导入任何数据。";
+        }
         
         resolve({ importedWords, importedKnowledgePoints, newlyCreatedSyllabusItems: newItemsGeneratedThisImportSession, message });
 

@@ -1,9 +1,11 @@
+
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { WordItem, KnowledgePointItem, LearningItem, SyllabusItem } from '../../types';
+import { WordItem, KnowledgePointItem, LearningItem, SyllabusItem, Ebook } from '../../types';
 import { StudyItemCard } from '../display/StudyItemCard';
 import { SRS_INTERVALS_DAYS, MAX_SRS_STAGE } from '../../constants';
 import { addDays, getTodayDateString } from '../../utils/dateUtils';
 import { Button } from '../common/Button';
+import { findExampleInEbook } from '../../utils/ebookUtils'; // Import for passing to StudyItemCard
 
 interface ReviewDashboardProps {
   words: WordItem[];
@@ -14,6 +16,8 @@ interface ReviewDashboardProps {
   allSyllabusItems?: SyllabusItem[];
   onMoveKnowledgePointCategory?: (itemId: string, newSyllabusId: string | null) => void;
   onEditItem?: (item: LearningItem) => void;
+  ebooks: Ebook[]; // For high-frequency word check
+  selectedEbookForLookupId: string | null; // For high-frequency word check
 }
 
 type FilterType = 'all' | 'word' | 'knowledge';
@@ -26,12 +30,15 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
     onReviewSessionCompleted,
     allSyllabusItems,
     onMoveKnowledgePointCategory,
-    onEditItem
+    onEditItem,
+    ebooks,
+    selectedEbookForLookupId
 }) => {
   const allItems: LearningItem[] = useMemo(() => [...words, ...knowledgePoints], [words, knowledgePoints]);
   
   const [showAll, setShowAll] = useState(false);
   const [filterType, setFilterType] = useState<FilterType>('all');
+  const [searchTerm, setSearchTerm] = useState(''); // For word search in "Show All"
 
   const itemsDueForReview = useMemo(() => {
     const today = getTodayDateString();
@@ -44,8 +51,6 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
 
   useEffect(() => {
     if (prevItemsDueCountRef.current > 0 && itemsDueForReview.length === 0 && !showAll) {
-      // Only trigger session completed if not in "show all" mode,
-      // as "show all" mode is for browsing, not active review session.
       onReviewSessionCompleted();
     }
     prevItemsDueCountRef.current = itemsDueForReview.length;
@@ -86,18 +91,32 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
     });
   }, [onUpdateItem]);
 
+  const selectedEbookContent = useMemo(() => {
+    if (!selectedEbookForLookupId) return null;
+    const ebook = ebooks.find(eb => eb.id === selectedEbookForLookupId);
+    return ebook ? ebook.content : null;
+  }, [ebooks, selectedEbookForLookupId]);
+
   const displayedItems = useMemo(() => {
+    let itemsToDisplay: LearningItem[];
     if (showAll) {
-      let itemsToDisplay = allItems;
       if (filterType === 'word') {
         itemsToDisplay = allItems.filter(item => item.type === 'word');
+        if (searchTerm) {
+          itemsToDisplay = itemsToDisplay.filter(item =>
+            (item as WordItem).text.toLowerCase().startsWith(searchTerm.toLowerCase())
+          );
+        }
       } else if (filterType === 'knowledge') {
         itemsToDisplay = allItems.filter(item => item.type === 'knowledge');
+        // Search term doesn't apply to knowledge points for now, but can be extended
+      } else {
+        itemsToDisplay = allItems;
       }
-      return itemsToDisplay.sort((a,b) => (a.createdAt && b.createdAt) ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() : (a.createdAt ? -1 : 1)); // Sort by newest first for "Show All"
+      return itemsToDisplay.sort((a,b) => (a.createdAt && b.createdAt) ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() : (a.createdAt ? -1 : 1));
     }
-    return itemsDueForReview; // Already sorted by nextReviewAt for due items
-  }, [allItems, itemsDueForReview, showAll, filterType]);
+    return itemsDueForReview;
+  }, [allItems, itemsDueForReview, showAll, filterType, searchTerm]);
 
   return (
     <div>
@@ -110,7 +129,10 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
          <Button
             onClick={() => {
               setShowAll(!showAll);
-              if (showAll) setFilterType('all'); // Reset filter when switching from "Show All" to "Due"
+              if (showAll) { // Means it's being toggled OFF
+                setFilterType('all');
+                setSearchTerm(''); // Reset search when leaving "Show All"
+              }
             }}
             variant="ghost"
           >
@@ -119,33 +141,46 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
       </div>
 
       {showAll && (
-        <div className="my-3 flex items-center space-x-2 border-b pb-3 mb-3">
-          <span className="text-sm font-medium text-gray-600">筛选:</span>
-          <Button
-            variant={filterType === 'all' ? 'primary' : 'ghost'}
-            onClick={() => setFilterType('all')}
-            size="sm"
-            aria-pressed={filterType === 'all'}
-          >
-            全部 ({allItems.length})
-          </Button>
-          <Button
-            variant={filterType === 'word' ? 'primary' : 'ghost'}
-            onClick={() => setFilterType('word')}
-            size="sm"
-            aria-pressed={filterType === 'word'}
-          >
-            单词 ({words.length})
-          </Button>
-          <Button
-            variant={filterType === 'knowledge' ? 'primary' : 'ghost'}
-            onClick={() => setFilterType('knowledge')}
-            size="sm"
-            aria-pressed={filterType === 'knowledge'}
-          >
-            知识点 ({knowledgePoints.length})
-          </Button>
-        </div>
+        <>
+          <div className="my-3 flex items-center space-x-2 border-b pb-3 mb-3">
+            <span className="text-sm font-medium text-gray-600">筛选:</span>
+            <Button
+              variant={filterType === 'all' ? 'primary' : 'ghost'}
+              onClick={() => { setFilterType('all'); setSearchTerm(''); }}
+              size="sm"
+              aria-pressed={filterType === 'all'}
+            >
+              全部 ({allItems.length})
+            </Button>
+            <Button
+              variant={filterType === 'word' ? 'primary' : 'ghost'}
+              onClick={() => setFilterType('word')}
+              size="sm"
+              aria-pressed={filterType === 'word'}
+            >
+              单词 ({words.length})
+            </Button>
+            <Button
+              variant={filterType === 'knowledge' ? 'primary' : 'ghost'}
+              onClick={() => { setFilterType('knowledge'); setSearchTerm(''); }}
+              size="sm"
+              aria-pressed={filterType === 'knowledge'}
+            >
+              知识点 ({knowledgePoints.length})
+            </Button>
+          </div>
+          {filterType === 'word' && (
+            <div className="mb-4">
+              <input
+                type="text"
+                placeholder="搜索单词 (按开头字母)..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+              />
+            </div>
+          )}
+        </>
       )}
 
       {displayedItems.length > 0 ? (
@@ -156,17 +191,19 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
               item={item}
               onRemembered={handleRemembered}
               onForgot={handleForgot}
-              onDeleteItem={showAll ? onDeleteItem : undefined} // Only allow delete in "Show All" mode
-              isReviewMode={!showAll && itemsDueForReview.some(dueItem => dueItem.id === item.id)} // Review mode if not showAll AND item is due
-              allSyllabusItems={allSyllabusItems} // Pass allSyllabusItems for KP category display/move
+              onDeleteItem={showAll ? onDeleteItem : undefined}
+              isReviewMode={!showAll && itemsDueForReview.some(dueItem => dueItem.id === item.id)}
+              allSyllabusItems={allSyllabusItems}
               onMoveItemCategory={showAll && item.type === 'knowledge' ? onMoveKnowledgePointCategory : undefined}
-              onEditItem={showAll ? onEditItem : undefined} // Only allow edit in "Show All" mode
+              onEditItem={showAll ? onEditItem : undefined}
+              selectedEbookContent={selectedEbookContent}
+              findExampleInEbook={findExampleInEbook}
             />
           ))}
         </div>
       ) : (
         <p className="text-gray-600">
-            {showAll ? (filterType === 'all' ? "尚未添加任何项目。开始学习新内容吧！" : `没有符合当前筛选条件的${filterType === 'word' ? '单词' : '知识点'}。`) : "目前没有到期的复习项。太棒了！🎉"}
+            {showAll ? (filterType === 'all' ? "尚未添加任何项目。开始学习新内容吧！" : `没有符合当前筛选条件的${filterType === 'word' ? (searchTerm ? '搜索结果' : '单词') : '知识点'}。`) : "目前没有到期的复习项。太棒了！🎉"}
         </p>
       )}
       
@@ -175,7 +212,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
             <h4 className="text-lg font-medium text-gray-600 mb-2">即将复习 (接下来5个):</h4>
             <div className="space-y-3">
             {upcomingItems.map(item => (
-                 <StudyItemCard // Upcoming items are not in "review mode" but can be viewed/edited/deleted
+                 <StudyItemCard
                     key={item.id}
                     item={item}
                     onRemembered={handleRemembered}
@@ -185,6 +222,8 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
                     allSyllabusItems={allSyllabusItems}
                     onMoveItemCategory={item.type === 'knowledge' ? onMoveKnowledgePointCategory : undefined}
                     onEditItem={onEditItem}
+                    selectedEbookContent={selectedEbookContent}
+                    findExampleInEbook={findExampleInEbook}
                 />
             ))}
             </div>
@@ -196,3 +235,4 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
     </div>
   );
 };
+

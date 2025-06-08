@@ -12,10 +12,10 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@4.4.168/buil
  * Finds all sentences containing the given word in a larger text content.
  * Sentences are split based on English and Chinese punctuation.
  * @param word The word to search for (case-insensitive).
- * @param ebookContent The text content of the e-book.
+ * @param ebookContent The text content of the e-book. Can be null.
  * @returns An array of sentences found containing the word. Each sentence is trimmed and respects a max length.
  */
-export function findExampleInEbook(word: string, ebookContent: string): string[] {
+export function findExampleInEbook(word: string, ebookContent: string | null): string[] {
   if (!word || !ebookContent || ebookContent.length === 0) {
     return [];
   }
@@ -117,7 +117,7 @@ export async function parseEpubToText(file: File): Promise<string> {
   for (const section of sections) {
     if (section.href) { // Ensure section has href
       try {
-        const loadedSectionDocument = await book.load(section.href); // Use book.load(section.href)
+        const loadedSectionDocument = await book.load(section.href); // Corrected line to load section content
         
         if (loadedSectionDocument && loadedSectionDocument.body instanceof Node) {
           const bodyElement = loadedSectionDocument.body as HTMLElement;
