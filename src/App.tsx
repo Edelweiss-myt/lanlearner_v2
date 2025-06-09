@@ -1,11 +1,12 @@
+
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { ActiveTab, WordItem, KnowledgePointItem, SyllabusItem, ChatMessage, LearningItem, Ebook, RecentlyDeletedItem } from './types';
+import { ActiveTab, WordItem, KnowledgePointItem, SyllabusItem, LearningItem, Ebook, RecentlyDeletedItem } from './types';
 import { Header } from './components/layout/Header';
 import { WordInputForm } from './components/inputs/WordInputForm';
 import { KnowledgePointInputForm } from './components/inputs/KnowledgePointInputForm';
 import { ReviewDashboard } from './components/features/ReviewDashboard';
 import { SyllabusManager } from './components/features/SyllabusManager';
-import { AiChat } from './components/features/AiChat';
+// import { AiChat } from './components/features/AiChat'; // Removed
 import { Tabs } from './components/common/Tabs';
 import { Button } from './components/common/Button';
 import { InitialSelectionScreen } from './components/layout/InitialSelectionScreen';
@@ -16,7 +17,7 @@ import { addDays, getTodayDateString } from './utils/dateUtils';
 import { SRS_INTERVALS_DAYS, SYLLABUS_ROOT_ID } from './constants';
 import { getStoredData, storeData } from './services/storageService';
 import { generateId } from './utils/miscUtils';
-import { exportDataToExcel, exportDataToExcelAutomatic } from './utils/exportUtils';
+import { exportDataToExcel } from './utils/exportUtils'; // Removed exportDataToExcelAutomatic
 import { importDataFromExcel } from './utils/importUtils';
 import { parsePdfToText, parseDocxToText, parseEpubToText } from './utils/ebookUtils';
 
@@ -31,7 +32,7 @@ const App: React.FC = () => {
   const [words, setWords] = useState<WordItem[]>([]);
   const [knowledgePoints, setKnowledgePoints] = useState<KnowledgePointItem[]>([]);
   const [syllabus, setSyllabus] = useState<SyllabusItem[]>([]);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  // const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]); // Removed
   const [isTrulyLoading, setIsTrulyLoading] = useState<boolean>(true);
 
   const [editingWord, setEditingWord] = useState<WordItem | null>(null);
@@ -100,7 +101,7 @@ const App: React.FC = () => {
         }
         setSyllabus(storedSyllabus);
       }
-      setChatMessages(getStoredData<ChatMessage[]>('chatMessages', []));
+      // setChatMessages(getStoredData<ChatMessage[]>('chatMessages', [])); // Removed
       
       const today = getTodayDateString();
       const dueItems = [...loadedWords, ...loadedKnowledgePoints]
@@ -117,44 +118,7 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
-  useEffect(() => {
-    if (isTrulyLoading) return;
-
-    const LAST_AUTO_EXPORT_KEY = 'lastAutoExportDate';
-    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-
-    const lastExportDateStr = getStoredData<string | null>(LAST_AUTO_EXPORT_KEY, null);
-    const today = new Date();
-    const todayDateString = today.toISOString().split('T')[0];
-
-    let shouldExport = false;
-    if (!lastExportDateStr) {
-      shouldExport = true;
-    } else {
-      const lastExportDate = new Date(lastExportDateStr);
-      if (today.getTime() - lastExportDate.getTime() >= SEVEN_DAYS_MS) {
-        shouldExport = true;
-      }
-    }
-
-    if (shouldExport) {
-      if (words.length > 0 || knowledgePoints.length > 0 || syllabus.length > 0) {
-        try {
-          console.log("Attempting automatic data export...");
-          exportDataToExcelAutomatic(words, knowledgePoints, syllabus);
-          storeData(LAST_AUTO_EXPORT_KEY, todayDateString);
-          console.log(`Automatic backup successful. Next check in 7 days.`);
-        } catch (e) {
-          console.error("Automatic data export failed:", e);
-        }
-      } else {
-        if (!lastExportDateStr) {
-            storeData(LAST_AUTO_EXPORT_KEY, todayDateString);
-        }
-      }
-    }
-  }, [words, knowledgePoints, syllabus, isTrulyLoading]);
-
+  // Automatic data export useEffect hook removed
 
   const handleEditItem = (item: LearningItem) => {
       if (item.type === 'knowledge') {
@@ -179,13 +143,13 @@ const App: React.FC = () => {
     storeData('syllabus', newSyllabus);
   }, []);
   
-  const persistChatMessages = useCallback((updater: ChatMessage[] | ((prevMessages: ChatMessage[]) => ChatMessage[])) => {
-    setChatMessages(prevMessages => {
-      const newMessages = typeof updater === 'function' ? updater(prevMessages) : updater;
-      storeData('chatMessages', newMessages);
-      return newMessages;
-    });
-  }, []);
+  // const persistChatMessages = useCallback((updater: ChatMessage[] | ((prevMessages: ChatMessage[]) => ChatMessage[])) => { // Removed
+  //   setChatMessages(prevMessages => {
+  //     const newMessages = typeof updater === 'function' ? updater(prevMessages) : updater;
+  //     storeData('chatMessages', newMessages);
+  //     return newMessages;
+  //   });
+  // }, []);
 
   const persistEbooks = useCallback((updatedEbooks: Ebook[]) => {
     setEbooks(updatedEbooks);
@@ -492,12 +456,7 @@ const App: React.FC = () => {
               onDeleteEbook={handleDeleteEbook}
             />
           )}
-          {activeTab === ActiveTab.AiChat && (
-             <AiChat
-                messages={chatMessages}
-                setMessages={persistChatMessages}
-              />
-          )}
+          {/* AI Chat section removed */}
         </div>
       </main>
       <footer className="text-center p-4 text-sm text-gray-500">

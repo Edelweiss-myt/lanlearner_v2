@@ -43,23 +43,7 @@ export enum ActiveTab {
   Learn = '学习',
   Review = '复习',
   Syllabus = '大纲',
-  AiChat = '',
-}
-
-export interface ChatMessage {
-  id: string;
-  text: string;
-  sender: 'user' | 'ai';
-  timestamp: Date;
-  sources?: GroundingChunk[];
-}
-
-export interface GroundingChunkWeb {
-  uri: string;
-  title: string;
-}
-export interface GroundingChunk {
-  web: GroundingChunkWeb;
+  // AiChat = 'AI 助手', // Removed
 }
 
 export interface Ebook {
@@ -72,4 +56,3 @@ export interface RecentlyDeletedItem {
   item: LearningItem;
   deletedAt: string;
 }
-

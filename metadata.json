@@ -1,6 +1,7 @@
+
 {
-  "name": "Lanlearner",
-  "description": "A personal language learning companion (Lanlearner) with AI-powered features for vocabulary building, knowledge acquisition, and spaced repetition. Uses Gemini API for intelligent assistance.",
+  "name": "Lanlearner_git",
+  "description": "A personal language learning companion (Lanlearner) with AI-powered features for vocabulary building, knowledge acquisition, and spaced repetition.“,
   "requestFramePermissions": [],
   "prompt": ""
 }

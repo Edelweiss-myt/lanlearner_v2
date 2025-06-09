@@ -37,7 +37,7 @@ VITE_API_KEY=AIzaSyAY1JopshkJP70BA6YASSw2x8dkyV_AcJk
 1. # If needed, npm install , rm package-lock.json, rm -rf node_modules
 2. npm run dev
    
-3. npm run build
+3. npm run build, if needed, npm i --save-dev @types/node
 4. git branch
 5. git add . 
 6. git commit -m "Your commit message"

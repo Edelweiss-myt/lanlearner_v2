@@ -24,3 +24,6 @@ declare module 'https://esm.sh/mammoth@1.8.0' {
   const mammoth: any; // Using 'any' for simplicity.
   export default mammoth;
 }
+
+// Removed Shim for Vite client types as it's handled by vite-env.d.ts
+// and was causing a conflict.

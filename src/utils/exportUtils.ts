@@ -92,12 +92,3 @@ export const exportDataToExcel = (
   const filename = `LinguaLeap_学习数据_${dateString}.xlsx`;
   createWorkbookAndDownload(words, knowledgePoints, syllabusItems, filename);
 };
-
-export const exportDataToExcelAutomatic = (
-  words: WordItem[],
-  knowledgePoints: KnowledgePointItem[],
-  syllabusItems: SyllabusItem[]
-): void => {
-  const filename = `LinguaLeap_AutoBackup.xlsx`;
-  createWorkbookAndDownload(words, knowledgePoints, syllabusItems, filename);
-};
