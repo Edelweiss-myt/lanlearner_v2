@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
@@ -41,7 +42,7 @@ export const EditKnowledgePointModal: React.FC<EditKnowledgePointModalProps> = (
       content: content.trim(), // Content is preserved as is (including newlines)
       notes: notes.trim() || undefined,
     });
-    onClose(); 
+    onClose();
   };
 
   return (

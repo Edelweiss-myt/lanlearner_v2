@@ -11,6 +11,17 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       port: 3000, // Optional: specify dev server port, default is 5173
+      proxy: {
+        // Proxy requests from /.netlify/functions/notion-proxy to the Notion API for local dev
+        // This simulates the Netlify function environment locally.
+        '/.netlify/functions/notion-proxy': {
+          target: 'https://api.notion.com', // Notion API base URL
+          changeOrigin: true, // Necessary for virtual hosted sites
+          // The rewrite function needs to correctly map the path.
+          // Example: /.netlify/functions/notion-proxy/v1/pages -> /v1/pages
+          rewrite: (path) => path.replace(/^\/\.netlify\/functions\/notion-proxy/, ''),
+        },
+      },
     },
     build: {
       outDir: 'dist', // Default output directory
@@ -20,10 +31,10 @@ export default defineConfig(({ mode }) => {
       exclude: ['pdfjs-dist', 'epubjs', 'mammoth']
     },
     define: {
-      // This makes process.env.API_KEY available in your client-side code.
-      // Vite will replace it with the actual value from your environment (e.g., .env file)
-      // The value needs to be stringified.
-      'process.env.API_KEY': JSON.stringify(env.API_KEY)
+      // API_KEY for Gemini remains client-side as per current app structure.
+      'process.env.API_KEY': JSON.stringify(env.API_KEY),
+      // NOTION_API_KEY and NOTION_PAGE_ID are removed from here.
+      // They will be used by the Netlify Function from Netlify's environment variables.
     }
   }
 })

@@ -1,19 +1,34 @@
+
 import React, { useState } from 'react';
 import { KnowledgePointItem, SyllabusItem } from '../../types';
 import { Button } from '../common/Button';
-import { SYLLABUS_ROOT_ID } from '../../constants';
+// Removed unused import: import { SYLLABUS_ROOT_ID, NEW_KNOWLEDGE_SYLLABUS_ROOT_ID } from '../../constants';
 
 interface KnowledgePointInputFormProps {
-  onAddKnowledgePoint: (kp: Omit<KnowledgePointItem, 'id' | 'createdAt' | 'lastReviewedAt' | 'nextReviewAt' | 'srsStage' | 'type'>) => void;
-  syllabusItems: SyllabusItem[];
+  onAddKnowledgePoint: (kp: Omit<KnowledgePointItem, 'id' | 'createdAt' | 'lastReviewedAt' | 'nextReviewAt' | 'srsStage' | 'type' | 'masterId' | 'subjectId'>) => void;
+  syllabusItems: SyllabusItem[]; // Full syllabus for the current context (main or new knowledge)
+  isNewSubjectContext: boolean; // True if this form is for the newKnowledgeSyllabus
+  syllabusRootId: string; // SYLLABUS_ROOT_ID or NEW_KNOWLEDGE_SYLLABUS_ROOT_ID
+  activeNewSubjectNameProp?: string | null; // Name of the primary "subject" category if in new knowledge context
 }
 
-export const KnowledgePointInputForm: React.FC<KnowledgePointInputFormProps> = ({ onAddKnowledgePoint, syllabusItems }) => {
+export const KnowledgePointInputForm: React.FC<KnowledgePointInputFormProps> = ({
+  onAddKnowledgePoint,
+  syllabusItems,
+  isNewSubjectContext,
+  syllabusRootId,
+  activeNewSubjectNameProp
+}) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [selectedSyllabusId, setSelectedSyllabusId] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    setSelectedSyllabusId(null);
+  }, [syllabusRootId, syllabusItems, activeNewSubjectNameProp]);
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,43 +49,40 @@ export const KnowledgePointInputForm: React.FC<KnowledgePointInputFormProps> = (
     setError(null);
   };
 
-  const renderSyllabusOptions = (items: SyllabusItem[], parentId: string | null = SYLLABUS_ROOT_ID, depth = 0): React.ReactNode[] => {
-    const children = items.filter(item => item.parentId === parentId || (parentId === SYLLABUS_ROOT_ID && !item.parentId && item.id !== SYLLABUS_ROOT_ID) || (parentId === SYLLABUS_ROOT_ID && item.id === SYLLABUS_ROOT_ID));
+  const renderSyllabusOptions = (items: SyllabusItem[], parentId: string | null, depth = 0): React.ReactNode[] => {
+    const children = items.filter(item => item.parentId === parentId && item.id !== syllabusRootId);
+    
     let options: React.ReactNode[] = [];
     
     children.forEach(item => {
-      // Do not render the root item itself as a selectable option if it's the one named "All Topics" / "所有主题"
-      if (item.id === SYLLABUS_ROOT_ID && parentId === SYLLABUS_ROOT_ID) { //This condition ensures we are talking about the root syllabus node if it's passed in items
-          // Render its children directly if parentId is SYLLABUS_ROOT_ID (conceptual root)
-          const childItems = items.filter(si => si.id !== SYLLABUS_ROOT_ID);
-          options = options.concat(renderSyllabusOptions(childItems, item.id, depth + 0)); // depth doesn't increment for conceptual root's direct children list
-          return; // stop processing this item further in this loop
-      }
-      
       options.push(
         <option key={item.id} value={item.id}>
           {'\u00A0'.repeat(depth * 4) + item.title}
         </option>
       );
-      const childItems = items.filter(si => si.id !== SYLLABUS_ROOT_ID);
-      if (item.id !== SYLLABUS_ROOT_ID) { 
-         options = options.concat(renderSyllabusOptions(childItems, item.id, depth + 1));
-      }
+      options = options.concat(renderSyllabusOptions(items, item.id, depth + 1));
     });
     return options;
   };
+  
+  const initialParentIdForDropdown = syllabusRootId;
 
+  const formTitle = isNewSubjectContext
+    ? (activeNewSubjectNameProp ? `添加新知识点 (${activeNewSubjectNameProp})` : "添加新知识点")
+    : "添加新知识点";
 
   return (
-    <div className="p-6 bg-white rounded-lg border border-gray-200">
-      <h3 className="text-xl font-semibold mb-4 text-gray-700">添加新知识点</h3>
+    <div className={`p-6 bg-white rounded-lg border ${isNewSubjectContext ? 'border-secondary-300' : 'border-gray-200'}`}>
+      <h3 className="text-xl font-semibold mb-4 text-gray-700">
+        {formTitle}
+      </h3>
       {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="kp-title" className="block text-sm font-medium text-gray-700">标题</label>
+          <label htmlFor={`kp-title-${syllabusRootId}`} className="block text-sm font-medium text-gray-700">标题</label>
           <input
             type="text"
-            id="kp-title"
+            id={`kp-title-${syllabusRootId}`}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="mt-1 shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border border-gray-300 rounded-md p-2"
@@ -78,9 +90,9 @@ export const KnowledgePointInputForm: React.FC<KnowledgePointInputFormProps> = (
           />
         </div>
         <div>
-          <label htmlFor="kp-content" className="block text-sm font-medium text-gray-700">内容 / 解释</label>
+          <label htmlFor={`kp-content-${syllabusRootId}`} className="block text-sm font-medium text-gray-700">内容 / 解释</label>
           <textarea
-            id="kp-content"
+            id={`kp-content-${syllabusRootId}`}
             rows={4}
             value={content}
             onChange={(e) => setContent(e.target.value)}
@@ -89,31 +101,35 @@ export const KnowledgePointInputForm: React.FC<KnowledgePointInputFormProps> = (
           ></textarea>
         </div>
         <div>
-          <label htmlFor="kp-syllabus" className="block text-sm font-medium text-gray-700">分类 (可选)</label>
+          <label htmlFor={`kp-syllabus-${syllabusRootId}`} className="block text-sm font-medium text-gray-700">
+            分类 (可选)
+          </label>
           <select
-            id="kp-syllabus"
+            id={`kp-syllabus-${syllabusRootId}`}
             value={selectedSyllabusId || ''}
             onChange={(e) => setSelectedSyllabusId(e.target.value || null)}
             className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
           >
-            <option value="">无分类 / 通用</option>
-            {renderSyllabusOptions(syllabusItems.filter(si => si.id !== SYLLABUS_ROOT_ID), null, 0)}
-            {syllabusItems.filter(si => si.id !== SYLLABUS_ROOT_ID && si.parentId === null).length === 0 && <option disabled>尚未定义分类</option>}
+            <option value="">
+                {isNewSubjectContext ? `无分类 / ${activeNewSubjectNameProp || '新知识体系'}顶级` : "无分类 / 通用"}
+            </option>
+            {renderSyllabusOptions(syllabusItems, initialParentIdForDropdown, 0)}
+            {syllabusItems.filter(si => si.parentId === initialParentIdForDropdown && si.id !== initialParentIdForDropdown).length === 0 && <option disabled>尚未定义有效分类</option>}
           </select>
         </div>
          <div>
-          <label htmlFor="kp-notes" className="block text-sm font-medium text-gray-700">备注 (可选)</label>
+          <label htmlFor={`kp-notes-${syllabusRootId}`} className="block text-sm font-medium text-gray-700">原文与备注 (可选)</label>
           <textarea
-            id="kp-notes"
-            name="kp-notes"
-            rows={2}
+            id={`kp-notes-${syllabusRootId}`}
+            name={`kp-notes-${syllabusRootId}`}
+            rows={3}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             className="mt-1 shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border border-gray-300 rounded-md p-2"
-            placeholder="任何额外备注..."
+            placeholder="记录知识点的原文出处、相关思考或其他备注信息..."
           ></textarea>
         </div>
-        <Button type="submit" className="w-full">添加知识点</Button>
+        <Button type="submit" className="w-full" variant={isNewSubjectContext ? 'secondary' : 'primary'}>添加知识点</Button>
       </form>
     </div>
   );

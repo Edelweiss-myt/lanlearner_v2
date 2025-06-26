@@ -1,3 +1,4 @@
+
 export function getStoredData<T>(key: string, defaultValue: T): T {
   try {
     const item = window.localStorage.getItem(key);

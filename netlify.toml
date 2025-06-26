@@ -1,0 +1,18 @@
+
+[build]
+  command = "npm run build" # Command to build your Vite project
+  publish = "dist"          # Directory where your built site is located
+  
+[functions]
+  directory = "netlify/functions" # Directory where your Netlify Functions are located
+  # Netlify usually defaults to a suitable Node.js version.
+  # If you need a specific one, you can specify it.
+  # node_bundler = "esbuild" # esbuild is the default and recommended
+
+# This rule is important for Single Page Applications (SPAs) like React apps.
+# It ensures that any direct navigation to a path within your app
+# (e.g., /review) serves the index.html, allowing client-side routing to take over.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

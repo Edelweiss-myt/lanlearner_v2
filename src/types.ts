@@ -27,7 +27,9 @@ export interface KnowledgePointItem extends StudyItem {
   type: 'knowledge';
   title: string;
   content: string;
-  syllabusItemId: string | null;
+  syllabusItemId: string | null; // ID of the category it belongs to
+  masterId?: string; // Used to link a new subject KP with its counterpart in the main syllabus
+  subjectId?: string; // For KPs in newKnowledgeSyllabus, this is the ID of their top-level "subject" category.
 }
 
 export interface SyllabusItem {
@@ -43,16 +45,28 @@ export enum ActiveTab {
   Learn = '学习',
   Review = '复习',
   Syllabus = '大纲',
-  // AiChat = 'AI 助手', // Removed
+  BuildNewSystem = '搭建新体系',
 }
 
 export interface Ebook {
-  id: string; // Added for unique identification
+  id: string;
   name: string;
-  content: string; // Full text content of the ebook
+  content: string;
 }
 
 export interface RecentlyDeletedItem {
   item: LearningItem;
   deletedAt: string;
+}
+
+// NewSubject interface is removed.
+// The "BuildNewSystem" tab will now manage a single, unified syllabus ("newKnowledgeSyllabus")
+// where top-level items are considered the different "subjects" (e.g., Economics, Psychology).
+
+export interface CurrentLearningPlan {
+  // If plan is for a category within newKnowledgeSyllabus, subjectId refers to the ID of its top-level "subject" category.
+  // If plan is for a category within mainSyllabus, this might be null or SYLLABUS_ROOT_ID.
+  subjectId: string | null;
+  categoryId: string;
+  categoryName: string;
 }

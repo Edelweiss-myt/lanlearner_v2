@@ -1,51 +1,77 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { WordItem, KnowledgePointItem, LearningItem, SyllabusItem, Ebook } from '../../types';
+import { WordItem, KnowledgePointItem, LearningItem, SyllabusItem, Ebook } from '../../types'; // Removed NewSubject
 import { StudyItemCard } from '../display/StudyItemCard';
-import { SRS_INTERVALS_DAYS, MAX_SRS_STAGE } from '../../constants';
+import { SRS_INTERVALS_DAYS, MAX_SRS_STAGE, SYLLABUS_ROOT_ID, NEW_KNOWLEDGE_SYLLABUS_ROOT_ID } from '../../constants';
 import { addDays, getTodayDateString } from '../../utils/dateUtils';
 import { Button } from '../common/Button';
-import { findExampleInEbook } from '../../utils/ebookUtils'; // Import for passing to StudyItemCard
+import { findExampleInEbook } from '../../utils/ebookUtils';
 
 interface ReviewDashboardProps {
   words: WordItem[];
-  knowledgePoints: KnowledgePointItem[];
+  mainKnowledgePoints: KnowledgePointItem[];
+  newKnowledgeSyllabus: SyllabusItem[]; // Unified new knowledge syllabus
+  newKnowledgeKnowledgePoints: KnowledgePointItem[]; // KPs from the new knowledge system
   onUpdateItem: (item: WordItem | KnowledgePointItem) => void;
   onDeleteItem: (id: string, type: 'word' | 'knowledge') => void;
   onReviewSessionCompleted: () => void;
-  allSyllabusItems?: SyllabusItem[];
-  onMoveKnowledgePointCategory?: (itemId: string, newSyllabusId: string | null) => void;
+  mainSyllabus: SyllabusItem[];
+  onMoveKnowledgePointCategory?: (itemId: string, newSyllabusId: string | null, isNewKnowledgeContext?: boolean) => void;
   onEditItem?: (item: LearningItem) => void;
-  ebooks: Ebook[]; // For high-frequency word check
-  selectedEbookForLookupId: string | null; // For high-frequency word check
+  ebooks: Ebook[];
+  selectedEbookForLookupId: string | null;
 }
 
-type FilterType = 'all' | 'word' | 'knowledge';
+type FilterType = 'all' | 'word' | 'main_knowledge' | 'new_subject_knowledge';
 
 export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
     words,
-    knowledgePoints,
+    mainKnowledgePoints,
+    newKnowledgeSyllabus,
+    newKnowledgeKnowledgePoints,
     onUpdateItem,
     onDeleteItem,
     onReviewSessionCompleted,
-    allSyllabusItems,
+    mainSyllabus,
     onMoveKnowledgePointCategory,
     onEditItem,
     ebooks,
     selectedEbookForLookupId
 }) => {
-  const allItems: LearningItem[] = useMemo(() => [...words, ...knowledgePoints], [words, knowledgePoints]);
+  
+  const allItems: LearningItem[] = useMemo(() => [...words, ...mainKnowledgePoints, ...newKnowledgeKnowledgePoints], [words, mainKnowledgePoints, newKnowledgeKnowledgePoints]);
   
   const [showAll, setShowAll] = useState(false);
   const [filterType, setFilterType] = useState<FilterType>('all');
-  const [searchTerm, setSearchTerm] = useState(''); // For word search in "Show All"
+  const [searchTerm, setSearchTerm] = useState('');
 
   const itemsDueForReview = useMemo(() => {
     const today = getTodayDateString();
-    return allItems
-      .filter(item => item.nextReviewAt && new Date(item.nextReviewAt).toISOString().split('T')[0] <= today)
-      .sort((a, b) => new Date(a.nextReviewAt!).getTime() - new Date(b.nextReviewAt!).getTime());
-  }, [allItems]);
+    const uniqueDueItems = new Map<string, LearningItem>();
+    allItems.forEach(item => {
+        if (item.nextReviewAt && new Date(item.nextReviewAt).toISOString().split('T')[0] <= today) {
+            if (item.type === 'word') {
+                uniqueDueItems.set(item.id, item);
+            } else {
+                const kp = item as KnowledgePointItem;
+                const masterId = kp.masterId || kp.id;
+                if (!uniqueDueItems.has(masterId)) {
+                    uniqueDueItems.set(masterId, item);
+                } else {
+                    const existing = uniqueDueItems.get(masterId) as KnowledgePointItem;
+                    if(mainKnowledgePoints.some(mkp => (mkp.masterId || mkp.id) === masterId && mkp.id === kp.id)) { // Check masterId for main KPs too
+                        uniqueDueItems.set(masterId, kp);
+                    } else if (new Date(kp.lastReviewedAt || kp.createdAt) > new Date(existing.lastReviewedAt || existing.createdAt)) {
+                        uniqueDueItems.set(masterId, kp);
+                    }
+                }
+            }
+        }
+    });
+    return Array.from(uniqueDueItems.values())
+                 .sort((a, b) => new Date(a.nextReviewAt!).getTime() - new Date(b.nextReviewAt!).getTime());
+  }, [allItems, mainKnowledgePoints]);
+
 
   const prevItemsDueCountRef = useRef(itemsDueForReview.length);
 
@@ -59,18 +85,30 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
 
   const upcomingItems = useMemo(() => {
      const today = getTodayDateString();
-     return allItems
-      .filter(item => item.nextReviewAt && new Date(item.nextReviewAt).toISOString().split('T')[0] > today)
-      .sort((a, b) => new Date(a.nextReviewAt!).getTime() - new Date(b.nextReviewAt!).getTime())
-      .slice(0, 5);
+     const uniqueUpcomingItems = new Map<string, LearningItem>();
+     allItems.forEach(item => {
+         if (item.nextReviewAt && new Date(item.nextReviewAt).toISOString().split('T')[0] > today) {
+             if (item.type === 'word') {
+                 uniqueUpcomingItems.set(item.id, item);
+             } else {
+                 const kp = item as KnowledgePointItem;
+                 const masterId = kp.masterId || kp.id;
+                 if (!uniqueUpcomingItems.has(masterId) ||
+                     (new Date(kp.lastReviewedAt || kp.createdAt) > new Date(uniqueUpcomingItems.get(masterId)!.lastReviewedAt || uniqueUpcomingItems.get(masterId)!.createdAt))) {
+                     uniqueUpcomingItems.set(masterId, item);
+                 }
+             }
+         }
+     });
+     return Array.from(uniqueUpcomingItems.values())
+                  .sort((a, b) => new Date(a.nextReviewAt!).getTime() - new Date(b.nextReviewAt!).getTime())
+                  .slice(0, 5);
   }, [allItems]);
-
 
   const handleRemembered = useCallback((item: LearningItem) => {
     const newSrsStage = Math.min(item.srsStage + 1, MAX_SRS_STAGE);
     const reviewInterval = SRS_INTERVALS_DAYS[newSrsStage] ?? SRS_INTERVALS_DAYS[MAX_SRS_STAGE];
     const nextReviewDate = addDays(getTodayDateString(), reviewInterval);
-
     onUpdateItem({
       ...item,
       srsStage: newSrsStage,
@@ -82,7 +120,6 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
   const handleForgot = useCallback((item: LearningItem) => {
     const newSrsStage = 0;
     const nextReviewDate = addDays(getTodayDateString(), SRS_INTERVALS_DAYS[newSrsStage]);
-    
     onUpdateItem({
       ...item,
       srsStage: newSrsStage,
@@ -107,16 +144,29 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
             (item as WordItem).text.toLowerCase().startsWith(searchTerm.toLowerCase())
           );
         }
-      } else if (filterType === 'knowledge') {
-        itemsToDisplay = allItems.filter(item => item.type === 'knowledge');
-        // Search term doesn't apply to knowledge points for now, but can be extended
-      } else {
+      } else if (filterType === 'main_knowledge') {
+        itemsToDisplay = mainKnowledgePoints;
+      } else if (filterType === 'new_subject_knowledge') {
+        itemsToDisplay = newKnowledgeKnowledgePoints;
+      } else { // 'all'
         itemsToDisplay = allItems;
       }
       return itemsToDisplay.sort((a,b) => (a.createdAt && b.createdAt) ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() : (a.createdAt ? -1 : 1));
     }
     return itemsDueForReview;
-  }, [allItems, itemsDueForReview, showAll, filterType, searchTerm]);
+  }, [allItems, itemsDueForReview, showAll, filterType, searchTerm, mainKnowledgePoints, newKnowledgeKnowledgePoints]);
+  
+  const getSyllabusForKpDisplay = (kp: KnowledgePointItem): SyllabusItem[] => {
+      if (kp.subjectId && newKnowledgeSyllabus.some(s => s.id === kp.subjectId && s.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID)) {
+          return newKnowledgeSyllabus;
+      }
+      return mainSyllabus;
+  };
+  
+  const isKpInNewKnowledgeContextForDisplay = (kp: KnowledgePointItem): boolean => {
+      return kp.subjectId !== undefined && newKnowledgeKnowledgePoints.some(nkkp => nkkp.id === kp.id);
+  };
+
 
   return (
     <div>
@@ -124,14 +174,14 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
         <h3 className="text-xl font-semibold text-gray-700">
           {showAll ? "所有项目" : "今日复习"}
           {!showAll && ` (${itemsDueForReview.length})`}
-          {showAll && ` (${displayedItems.length}${filterType !== 'all' ? ` ${filterType === 'word' ? '单词' : '知识点'}` : ''} / ${allItems.length} 总计)`}
+          {showAll && ` (${displayedItems.length}${filterType !== 'all' ? ` ${filterType === 'word' ? '单词' : (filterType === 'main_knowledge' ? '主大纲知识点' : '新知识体系知识点')}` : ''} / ${allItems.length} 总计)`}
         </h3>
          <Button
             onClick={() => {
               setShowAll(!showAll);
-              if (showAll) { // Means it's being toggled OFF
+              if (showAll) {
                 setFilterType('all');
-                setSearchTerm(''); // Reset search when leaving "Show All"
+                setSearchTerm('');
               }
             }}
             variant="ghost"
@@ -142,13 +192,14 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
 
       {showAll && (
         <>
-          <div className="my-3 flex items-center space-x-2 border-b pb-3 mb-3">
-            <span className="text-sm font-medium text-gray-600">筛选:</span>
+          <div className="my-3 flex items-center space-x-2 border-b pb-3 mb-3 flex-wrap">
+            <span className="text-sm font-medium text-gray-600 mr-2">筛选:</span>
             <Button
               variant={filterType === 'all' ? 'primary' : 'ghost'}
               onClick={() => { setFilterType('all'); setSearchTerm(''); }}
               size="sm"
               aria-pressed={filterType === 'all'}
+              className="mb-1"
             >
               全部 ({allItems.length})
             </Button>
@@ -157,16 +208,27 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
               onClick={() => setFilterType('word')}
               size="sm"
               aria-pressed={filterType === 'word'}
+              className="mb-1"
             >
               单词 ({words.length})
             </Button>
             <Button
-              variant={filterType === 'knowledge' ? 'primary' : 'ghost'}
-              onClick={() => { setFilterType('knowledge'); setSearchTerm(''); }}
+              variant={filterType === 'main_knowledge' ? 'primary' : 'ghost'}
+              onClick={() => { setFilterType('main_knowledge'); setSearchTerm(''); }}
               size="sm"
-              aria-pressed={filterType === 'knowledge'}
+              aria-pressed={filterType === 'main_knowledge'}
+              className="mb-1"
             >
-              知识点 ({knowledgePoints.length})
+              主大纲知识点 ({mainKnowledgePoints.length})
+            </Button>
+            <Button
+              variant={filterType === 'new_subject_knowledge' ? 'primary' : 'ghost'}
+              onClick={() => { setFilterType('new_subject_knowledge'); setSearchTerm(''); }}
+              size="sm"
+              aria-pressed={filterType === 'new_subject_knowledge'}
+              className="mb-1"
+            >
+              新知识体系知识点 ({newKnowledgeKnowledgePoints.length})
             </Button>
           </div>
           {filterType === 'word' && (
@@ -185,25 +247,49 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
 
       {displayedItems.length > 0 ? (
         <div className="space-y-4">
-          {displayedItems.map(item => (
-            <StudyItemCard
-              key={item.id}
-              item={item}
-              onRemembered={handleRemembered}
-              onForgot={handleForgot}
-              onDeleteItem={showAll ? onDeleteItem : undefined}
-              isReviewMode={!showAll && itemsDueForReview.some(dueItem => dueItem.id === item.id)}
-              allSyllabusItems={allSyllabusItems}
-              onMoveItemCategory={showAll && item.type === 'knowledge' ? onMoveKnowledgePointCategory : undefined}
-              onEditItem={showAll ? onEditItem : undefined}
-              selectedEbookContent={selectedEbookContent}
-              findExampleInEbook={findExampleInEbook}
-            />
-          ))}
+          {displayedItems.map(item => {
+            const isNewKnowledgeContext = item.type === 'knowledge' ? isKpInNewKnowledgeContextForDisplay(item as KnowledgePointItem) : false;
+            return (
+              <StudyItemCard
+                key={item.id + (item.type === 'knowledge' ? ((item as KnowledgePointItem).subjectId || 'main') : '')}
+                item={item}
+                onRemembered={handleRemembered}
+                onForgot={handleForgot}
+                onDeleteItem={showAll ? onDeleteItem : undefined}
+                isReviewMode={
+                  !showAll &&
+                  itemsDueForReview.some(dueItem => {
+                    if (dueItem.type === 'word' && item.type === 'word') {
+                      return dueItem.id === item.id;
+                    }
+                    if (dueItem.type === 'knowledge' && item.type === 'knowledge') {
+                      const dueKp = dueItem as KnowledgePointItem;
+                      const currentKp = item as KnowledgePointItem;
+                      const dueMasterId = dueKp.masterId || dueKp.id;
+                      const currentMasterId = currentKp.masterId || currentKp.id;
+                      return dueMasterId === currentMasterId;
+                    }
+                    return false;
+                  })
+                }
+                allSyllabusItems={item.type === 'knowledge' ? getSyllabusForKpDisplay(item as KnowledgePointItem) : undefined}
+                onMoveItemCategory={
+                  showAll && item.type === 'knowledge' && onMoveKnowledgePointCategory
+                  ? (itemId, newSyllabusId) => onMoveKnowledgePointCategory(itemId, newSyllabusId, isNewKnowledgeContext)
+                  : undefined
+                }
+                onEditItem={showAll ? onEditItem : undefined}
+                selectedEbookContent={selectedEbookContent}
+                findExampleInEbook={findExampleInEbook}
+                isDisplayingInNewSubjectContext={isNewKnowledgeContext}
+                contextualSyllabusRootId={isNewKnowledgeContext ? NEW_KNOWLEDGE_SYLLABUS_ROOT_ID : SYLLABUS_ROOT_ID}
+              />
+            );
+          })}
         </div>
       ) : (
         <p className="text-gray-600">
-            {showAll ? (filterType === 'all' ? "尚未添加任何项目。开始学习新内容吧！" : `没有符合当前筛选条件的${filterType === 'word' ? (searchTerm ? '搜索结果' : '单词') : '知识点'}。`) : "目前没有到期的复习项。太棒了！🎉"}
+            {showAll ? (filterType === 'all' ? "尚未添加任何项目。开始学习新内容吧！" : `沒有符合当前筛选条件的${filterType === 'word' ? (searchTerm ? '搜索结果' : '单词') : (filterType === 'main_knowledge' ? '主大纲知识点' : '新知识体系知识点')}。`) : "目前没有到期的复习项。太棒了！🎉"}
         </p>
       )}
       
@@ -211,21 +297,30 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
         <div className="mt-8">
             <h4 className="text-lg font-medium text-gray-600 mb-2">即将复习 (接下来5个):</h4>
             <div className="space-y-3">
-            {upcomingItems.map(item => (
+            {upcomingItems.map(item => {
+              const isNewKnowledgeContext = item.type === 'knowledge' ? isKpInNewKnowledgeContextForDisplay(item as KnowledgePointItem) : false;
+              return (
                  <StudyItemCard
-                    key={item.id}
+                    key={item.id + "-upcoming" + (item.type === 'knowledge' ? ((item as KnowledgePointItem).subjectId || 'main') : '')}
                     item={item}
                     onRemembered={handleRemembered}
                     onForgot={handleForgot}
                     onDeleteItem={onDeleteItem}
                     isReviewMode={false}
-                    allSyllabusItems={allSyllabusItems}
-                    onMoveItemCategory={item.type === 'knowledge' ? onMoveKnowledgePointCategory : undefined}
+                    allSyllabusItems={item.type === 'knowledge' ? getSyllabusForKpDisplay(item as KnowledgePointItem) : undefined}
+                    onMoveItemCategory={
+                      item.type === 'knowledge' && onMoveKnowledgePointCategory
+                      ? (itemId, newSyllabusId) => onMoveKnowledgePointCategory(itemId, newSyllabusId, isNewKnowledgeContext)
+                      : undefined
+                    }
                     onEditItem={onEditItem}
                     selectedEbookContent={selectedEbookContent}
                     findExampleInEbook={findExampleInEbook}
+                    isDisplayingInNewSubjectContext={isNewKnowledgeContext}
+                    contextualSyllabusRootId={isNewKnowledgeContext ? NEW_KNOWLEDGE_SYLLABUS_ROOT_ID : SYLLABUS_ROOT_ID}
                 />
-            ))}
+              );
+            })}
             </div>
         </div>
       )}
@@ -235,4 +330,3 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
     </div>
   );
 };
-

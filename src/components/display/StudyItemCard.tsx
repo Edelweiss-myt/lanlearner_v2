@@ -1,8 +1,9 @@
+
 import React, { useState, useMemo } from 'react';
-import { LearningItem, SyllabusItem } from '../../types';
+import { LearningItem, SyllabusItem, KnowledgePointItem } from '../../types';
 import { Button } from '../common/Button';
 import { formatDate, timeAgo } from '../../utils/dateUtils';
-import { SYLLABUS_ROOT_ID, SYLLABUS_PATH_SEPARATOR } from '../../constants';
+import { SYLLABUS_PATH_SEPARATOR } from '../../constants'; // Removed SYLLABUS_ROOT_ID, NEW_KNOWLEDGE_SYLLABUS_ROOT_ID from here
 
 interface StudyItemCardProps {
   item: LearningItem;
@@ -15,6 +16,9 @@ interface StudyItemCardProps {
   onMoveItemCategory?: (itemId: string, newSyllabusId: string | null) => void;
   selectedEbookContent: string | null;
   findExampleInEbook: (word: string, content: string | null) => string[];
+  isDisplayingInNewSubjectContext?: boolean;
+  onSyncToMainSyllabus?: (kpId: string) => void;
+  contextualSyllabusRootId: string; // Added prop for dynamic root ID
 }
 
 export const StudyItemCard: React.FC<StudyItemCardProps> = ({
@@ -28,11 +32,18 @@ export const StudyItemCard: React.FC<StudyItemCardProps> = ({
   onMoveItemCategory,
   selectedEbookContent,
   findExampleInEbook,
+  isDisplayingInNewSubjectContext,
+  onSyncToMainSyllabus,
+  contextualSyllabusRootId, // Destructured prop
 }) => {
   const [showDetails, setShowDetails] = useState(!isReviewMode);
   const [showCategoryMove, setShowCategoryMove] = useState(false);
 
-  const getSyllabusPathDisplay = (syllabusItemId: string | null, currentSyllabusItems: SyllabusItem[]): string => {
+  const getSyllabusPathDisplay = (
+    syllabusItemId: string | null,
+    currentSyllabusItems: SyllabusItem[],
+    currentContextRootId: string // Use passed root ID
+  ): string => {
     if (!syllabusItemId || !currentSyllabusItems || currentSyllabusItems.length === 0) {
       return '未分类';
     }
@@ -43,9 +54,9 @@ export const StudyItemCard: React.FC<StudyItemCardProps> = ({
     while (currentId && !visited.has(currentId)) {
       visited.add(currentId);
       const currentItem = currentSyllabusItems.find(s => s.id === currentId);
-      if (currentItem && currentItem.id !== SYLLABUS_ROOT_ID) {
+      if (currentItem && currentItem.id !== currentContextRootId) { // Use dynamic root ID
         pathParts.unshift(currentItem.title);
-        currentId = currentItem.parentId === SYLLABUS_ROOT_ID ? null : currentItem.parentId;
+        currentId = currentItem.parentId === currentContextRootId ? null : currentItem.parentId; // Use dynamic root ID
       } else {
         currentId = null;
       }
@@ -55,10 +66,10 @@ export const StudyItemCard: React.FC<StudyItemCardProps> = ({
 
   const syllabusPath = useMemo(() => {
     if (item.type === 'knowledge' && allSyllabusItems) {
-      return getSyllabusPathDisplay(item.syllabusItemId, allSyllabusItems);
+      return getSyllabusPathDisplay(item.syllabusItemId, allSyllabusItems, contextualSyllabusRootId);
     }
     return '';
-  }, [item, allSyllabusItems]);
+  }, [item, allSyllabusItems, contextualSyllabusRootId]);
 
   const isHighFrequency = useMemo(() => {
     if (item.type === 'word' && selectedEbookContent) {
@@ -107,7 +118,6 @@ export const StudyItemCard: React.FC<StudyItemCardProps> = ({
             <h4 className="text-lg font-semibold break-words text-gray-800">{item.title}</h4>
           )}
         </div>
-        {/* Removed top show/hide details button for review mode */}
       </div>
 
       {((isReviewMode && showDetails) || (!isReviewMode && showDetails)) && (
@@ -123,7 +133,6 @@ export const StudyItemCard: React.FC<StudyItemCardProps> = ({
         </div>
       )}
       
-      {/* Action buttons section - updated based on user snippet */}
       <div className="mt-4">
         {isReviewMode ? (
           <div className="flex space-x-2">
@@ -148,8 +157,7 @@ export const StudyItemCard: React.FC<StudyItemCardProps> = ({
               <Button onClick={toggleDetails} variant="ghost" size="sm">
                 {showDetails ? '隐藏详情' : '显示详情'}
               </Button>
-              <div className="flex space-x-1">
-                {/* Updated condition: Show edit button if onEditItem is provided, for both word and knowledge types */}
+              <div className="flex space-x-1 items-center">
                 {onEditItem && (
                     <Button onClick={handleEdit} variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700">
                         编辑
@@ -168,18 +176,30 @@ export const StudyItemCard: React.FC<StudyItemCardProps> = ({
                             >
                                 移至 未分类
                             </button>
-                            {allSyllabusItems.filter(si => si.id !== SYLLABUS_ROOT_ID).map(cat => (
+                            {allSyllabusItems.filter(si => si.id !== contextualSyllabusRootId).map(cat => (
                                 <button
                                 key={cat.id}
                                 onClick={() => { onMoveItemCategory(item.id, cat.id); setShowCategoryMove(false); }}
                                 className="block w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
                                 >
-                                {getSyllabusPathDisplay(cat.id, allSyllabusItems)}
+                                {getSyllabusPathDisplay(cat.id, allSyllabusItems, contextualSyllabusRootId)}
                                 </button>
                             ))}
                             </div>
                         )}
                     </div>
+                )}
+                {isDisplayingInNewSubjectContext && item.type === 'knowledge' && onSyncToMainSyllabus && (
+                  <Button
+                    onClick={() => onSyncToMainSyllabus(item.id)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-teal-600 hover:text-teal-700 text-xs px-1 py-0.5"
+                    title={`同步此知识点至主大纲`}
+                    aria-label={`同步知识点 "${(item as KnowledgePointItem).title}" 至主大纲`}
+                  >
+                    同步至主大纲
+                  </Button>
                 )}
                 {onDeleteItem && (
                     <Button onClick={handleDelete} variant="danger" size="sm">
