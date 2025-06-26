@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef } from 'react';
 import { SyllabusItem, KnowledgePointItem, LearningItem, Ebook } from '../../types';
 import { Button } from '../common/Button';
@@ -148,13 +147,13 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
           const hasChildren = itemsByParent.has(item.id) && itemsByParent.get(item.id)!.length > 0;
           const isCollapsed = collapsedItems.has(item.id);
           const isTopLevelSubjectCategory = isNewSubjectContext && item.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID;
-          const setPrimaryStyle = "text-green-600 hover:text-green-700 text-xs px-0.5";
-          const planStyle = "text-blue-600 hover:text-blue-700 text-xs px-0.5";
-          const editStyle = "text-gray-600 hover:text-gray-800 text-xs px-0.5";
+          const setPrimaryStyle = "text-green-600 hover:text-green-700 text-[10px] leading-tight";
+          const planStyle = "text-blue-600 hover:text-blue-700 text-[10px] leading-tight";
+          const editStyle = "text-gray-600 hover:text-gray-800 text-[10px] leading-tight";
 
           return (
             <li key={item.id} className="my-1">
-              <div className="flex justify-between items-center p-2 rounded-md hover:bg-gray-100 group">
+              <div className="relative flex justify-between items-center p-2 rounded-md hover:bg-gray-100 group">
                 <div className="flex items-center flex-1">
                   {hasChildren && (
                     <span onClick={() => toggleCollapse(item.id)} className="cursor-pointer pr-1 text-gray-500">
@@ -170,7 +169,7 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
                   </span>
                   {isNewSubjectContext && item.id === primaryNewKnowledgeSubjectCategoryId && <span className="text-xs text-green-700 font-semibold ml-1 flex-shrink-0">(主学)</span>}
                 </div>
-                <div className="space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col space-y-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur-sm p-1 rounded-md shadow-lg">
                   {isNewSubjectContext && onSetPrimaryCategoryAsSubject && isTopLevelSubjectCategory && item.id !== primaryNewKnowledgeSubjectCategoryId && (
                     <Button
                       size="sm"
