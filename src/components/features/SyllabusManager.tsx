@@ -64,6 +64,7 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<EditableSyllabusItem | null>(null);
   const [selectedSyllabusId, setSelectedSyllabusId] = useState<string | null>(currentSubjectRootId);
+  const [collapsedItems, setCollapsedItems] = useState<Set<string>>(new Set());
   const ebookFileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -107,7 +108,20 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
     if (window.confirm(confirmMessage)) {
       onDeleteItem(id);
       if(selectedSyllabusId === id) setSelectedSyllabusId(currentSubjectRootId);
+      closeModal();
     }
+  };
+
+  const toggleCollapse = (itemId: string) => {
+    setCollapsedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
   };
 
   const itemsByParent = useMemo(() => {
@@ -131,23 +145,32 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
     return (
       <ul className={depth > 0 ? "pl-4" : ""}>
         {children.map(item => {
+          const hasChildren = itemsByParent.has(item.id) && itemsByParent.get(item.id)!.length > 0;
+          const isCollapsed = collapsedItems.has(item.id);
           const isTopLevelSubjectCategory = isNewSubjectContext && item.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID;
-          const setPrimaryStyle = "text-green-600 hover:text-green-700 text-xs px-1";
-          const planStyle = "text-blue-600 hover:text-blue-700 text-xs px-1";
-          const editStyle = "text-blue-600 hover:text-blue-700 text-xs px-1";
-          const deleteStyle = "text-red-500 hover:text-red-600 text-xs px-1";
+          const setPrimaryStyle = "text-green-600 hover:text-green-700 text-xs px-0.5";
+          const planStyle = "text-blue-600 hover:text-blue-700 text-xs px-0.5";
+          const editStyle = "text-gray-600 hover:text-gray-800 text-xs px-0.5";
 
           return (
-            <li key={item.id} className="my-1 p-2 rounded-md hover:bg-gray-100 group">
-              <div className="flex justify-between items-center">
-                <span
-                  onClick={() => setSelectedSyllabusId(item.id)}
-                  className={`cursor-pointer ${selectedSyllabusId === item.id ? 'font-bold text-primary-600' : ''}`}
-                >
-                  {item.title}
-                  {isNewSubjectContext && item.id === primaryNewKnowledgeSubjectCategoryId && <span className="text-xs text-green-700 font-semibold ml-1">(主学)</span>}
-                </span>
-                <div className="space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <li key={item.id} className="my-1">
+              <div className="flex justify-between items-center p-2 rounded-md hover:bg-gray-100 group">
+                <div className="flex items-center flex-1">
+                  {hasChildren && (
+                    <span onClick={() => toggleCollapse(item.id)} className="cursor-pointer pr-1 text-gray-500">
+                      {isCollapsed ? '▶' : '▼'}
+                    </span>
+                  )}
+                  <span
+                    onClick={() => setSelectedSyllabusId(item.id)}
+                    className={`cursor-pointer ${!hasChildren ? 'ml-4' : ''} ${selectedSyllabusId === item.id ? 'font-bold text-primary-600' : ''}`}
+                    title={item.title}
+                  >
+                    {item.title}
+                  </span>
+                  {isNewSubjectContext && item.id === primaryNewKnowledgeSubjectCategoryId && <span className="text-xs text-green-700 font-semibold ml-1 flex-shrink-0">(主学)</span>}
+                </div>
+                <div className="space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                   {isNewSubjectContext && onSetPrimaryCategoryAsSubject && isTopLevelSubjectCategory && item.id !== primaryNewKnowledgeSubjectCategoryId && (
                     <Button
                       size="sm"
@@ -177,25 +200,16 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
                       onClick={() => openModal(item)}
                       aria-label={`编辑分类 ${item.title}`}
                       className={editStyle}
-                    >✎ 编辑</Button>
-                  )}
-                  {item.id !== currentSubjectRootId && (  // Delete button
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeleteSyllabusItem(item.id)}
-                        className={deleteStyle}
-                        aria-label={`删除分类 ${item.title}`}
-                      >🗑 删除</Button>
+                    >编辑</Button>
                   )}
                 </div>
               </div>
-              {itemsByParent.has(item.id) && renderSyllabusTree(item.id, depth + 1)}
+              {!isCollapsed && hasChildren && renderSyllabusTree(item.id, depth + 1)}
             </li>
           );
         })}
          {parentId === currentSubjectRootId && children.length === 0 && (
-            <li className="text-sm text-gray-500 pl-0">暂无顶级分类。点击“添加新分类”开始。</li>
+            <li className="text-sm text-gray-500 pl-0">暂无顶级分类。点击"添加新分类"开始。</li>
          )}
       </ul>
     );
@@ -390,10 +404,19 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
             </select>
             {isNewSubjectContext && <p className="text-xs text-gray-500 mt-1">分类将添加到 "{currentSubjectName}" 下。</p>}
           </div>
-          <div className="flex justify-end space-x-2">
-            <Button onClick={closeModal} variant="ghost">取消</Button>
-            <Button onClick={handleSave} variant={isNewSubjectContext ? 'secondary' : 'primary'}>保存</Button>
-          </div>
+          <div className="flex justify-between items-center mt-6">
+              <div>
+                {editingItem?.id && (
+                  <Button variant="danger" onClick={() => handleDeleteSyllabusItem(editingItem.id!)}>
+                    删除
+                  </Button>
+                )}
+              </div>
+              <div className="flex space-x-2">
+                <Button onClick={closeModal} variant="ghost">取消</Button>
+                <Button onClick={handleSave} variant={isNewSubjectContext ? 'secondary' : 'primary'}>保存</Button>
+              </div>
+           </div>
         </div>
       </Modal>
     </div>
