@@ -668,7 +668,7 @@ const App: React.FC = () => {
     if (kpsAddedToMainList.length > 0) {
         alert(`${messageBase}${kpsAddedToMainList.length > 1 ? kpsAddedToMainList.length + " 个知识点" : (singleKpSync ? "" : "知识点")}已作为独立副本添加/更新到主大纲对应分类。`);
     } else if (kpsToSync.length > 0 && kpsAddedToMainList.length === 0) {
-        alert(`${messageBase}所有选定知识点似乎已在主大纲中存在对应项。主大纲中的副本可能已更新（内容取自新体系）。`);
+        alert(`${messageBase}所有选定知识点似乎已在主大纲中存在对应项。请检查‘全部/未分类’。`);
     }
   };
   
