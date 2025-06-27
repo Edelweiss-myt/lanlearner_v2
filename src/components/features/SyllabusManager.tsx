@@ -63,7 +63,20 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<EditableSyllabusItem | null>(null);
   const [selectedSyllabusId, setSelectedSyllabusId] = useState<string | null>(currentSubjectRootId);
-  const [collapsedItems, setCollapsedItems] = useState<Set<string>>(new Set());
+  const [collapsedItems, setCollapsedItems] = useState<Set<string>>(() => {
+    if (isNewSubjectContext) {
+      // In "Build New System" context, collapse all top-level categories by default.
+      // This achieves the goal of "showing level 1, collapsing level 2".
+      const topLevelItemIds = new Set<string>();
+      syllabusItems.forEach(item => {
+        if (item.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
+          topLevelItemIds.add(item.id);
+        }
+      });
+      return topLevelItemIds;
+    }
+    return new Set<string>(); // Default for other views: start expanded.
+  });
   const ebookFileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -162,7 +175,7 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
                   )}
                 <span
                   onClick={() => setSelectedSyllabusId(item.id)}
-                    className={`cursor-pointer ${!hasChildren ? 'ml-4' : ''} ${selectedSyllabusId === item.id ? 'font-bold text-primary-600' : ''} ${item.isLearned ? 'text-green-600' : ''}`}
+                    className={`cursor-pointer ${!hasChildren ? 'ml-4' : ''} ${selectedSyllabusId === item.id ? 'font-bold text-primary-600' : (item.isLearned ? 'text-green-700' : 'text-gray-900')}`}
                     title={item.title}
                 >
                   {item.title}

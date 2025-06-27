@@ -32,8 +32,6 @@ dist
 VITE_API_KEY=AIzaSyAY1JopshkJP70BA6YASSw2x8dkyV_AcJk
 
 
-
-
 ## Update Online
 
 1. If needed, npm install , rm package-lock.json, rm -rf node_modules
