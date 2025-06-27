@@ -1,4 +1,3 @@
-
 import * as XLSX from 'xlsx';
 import { WordItem, KnowledgePointItem, SyllabusItem } from '../types';
 import { formatDate } from './dateUtils';
@@ -89,6 +88,22 @@ const createWorkbookAndDownload = (
     const newKnowledgeSheetName = `主学 - ${primaryNewKnowledgeSubjectCategoryName}`;
     const newKnowledgeKpSheet = XLSX.utils.json_to_sheet(newKnowledgeKpData);
     XLSX.utils.book_append_sheet(workbook, newKnowledgeKpSheet, newKnowledgeSheetName);
+  }
+
+  // Add a new sheet for the new knowledge syllabus structure itself
+  if (newKnowledgeSyllabusItems.length > 0) {
+    const syllabusExportData = newKnowledgeSyllabusItems
+      .filter(item => item.id !== NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) // Don't export the root
+      .map(item => ({
+        '分类名称': item.title,
+        '父级分类路径': getSyllabusPath(item.parentId, newKnowledgeSyllabusItems, true) || '顶级',
+        '是否已学完': item.isLearned ? '是' : '否',
+      }));
+    
+    if (syllabusExportData.length > 0) {
+      const syllabusSheet = XLSX.utils.json_to_sheet(syllabusExportData);
+      XLSX.utils.book_append_sheet(workbook, syllabusSheet, '新知识大纲');
+    }
   }
 
   XLSX.writeFile(workbook, filename);

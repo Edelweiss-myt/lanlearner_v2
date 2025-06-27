@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { ActiveTab, WordItem, KnowledgePointItem, SyllabusItem, LearningItem, Ebook, RecentlyDeletedItem, CurrentLearningPlan } from './types';
 import { Header } from './components/layout/Header';
@@ -229,6 +228,40 @@ const App: React.FC = () => {
     storeData('currentLearningPlan', plan);
   }, []);
 
+  const handleMarkCategoryAsLearned = useCallback((categoryId: string) => {
+    let updatedSyllabus = [...newKnowledgeSyllabus];
+    const categoryIndex = updatedSyllabus.findIndex(s => s.id === categoryId);
+
+    if (categoryIndex === -1) return;
+
+    // Mark the category itself as learned
+    updatedSyllabus[categoryIndex] = { ...updatedSyllabus[categoryIndex], isLearned: true };
+
+    // Recursive function to check and update parents
+    const updateParentStatus = (childId: string) => {
+      const child = updatedSyllabus.find(s => s.id === childId);
+      if (!child || !child.parentId || child.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
+        return; // Stop if no parent or parent is root
+      }
+
+      const parentId = child.parentId;
+      const siblings = updatedSyllabus.filter(s => s.parentId === parentId);
+      const allSiblingsLearned = siblings.every(s => s.isLearned);
+
+      if (allSiblingsLearned) {
+        const parentIndex = updatedSyllabus.findIndex(s => s.id === parentId);
+        if (parentIndex !== -1 && !updatedSyllabus[parentIndex].isLearned) {
+          updatedSyllabus[parentIndex] = { ...updatedSyllabus[parentIndex], isLearned: true };
+          // Recurse to check the grandparent
+          updateParentStatus(parentId);
+        }
+      }
+    };
+
+    updateParentStatus(categoryId);
+    persistNewKnowledgeSyllabus(updatedSyllabus);
+  }, [newKnowledgeSyllabus, persistNewKnowledgeSyllabus]);
+
 
   const persistEbooks = useCallback((updatedEbooks: Ebook[]) => {
     setEbooks(updatedEbooks);
@@ -413,7 +446,7 @@ const App: React.FC = () => {
       ? (itemToDelete.type === 'word' ? itemToDelete.text : itemToDelete.title)
       : '未知项目';
 
-    const confirmMessage = `您确定要删除这个${itemType === 'word' ? '单词' : '知识点'}：“${itemIdentifier}”吗？此项目将被移至“最近删除”，可在24小时内恢复。`;
+    const confirmMessage = `您确定要删除这个${itemType === 'word' ? '单词' : '知识点'}："${itemIdentifier}"吗？此项目将被移至"最近删除"，可在24小时内恢复。`;
     
     if (window.confirm(confirmMessage)) {
         if (itemType === 'word') {
@@ -612,12 +645,12 @@ const App: React.FC = () => {
     // Check if the targetMainCategoryId is SYLLABUS_ROOT_ID which means it will be uncategorized
     // or if it's a valid category. If null (and not singleKpSync) it's an issue.
     if (targetMainCategoryId === null && !singleKpSync) {
-        alert(`无法在主大纲中找到学科 "${subjectNameForAlert}" 对应分类。请先使用“导至主大纲”功能。`);
+        alert(`无法在主大纲中找到学科 "${subjectNameForAlert}" 对应分类。请先使用"导至主大纲"功能。`);
         return;
     }
     if (targetMainCategoryId === null && singleKpSync && kpsToSync[0].syllabusItemId) {
         const originalNsCat = newKnowledgeSyllabus.find(s => s.id === kpsToSync[0].syllabusItemId);
-        alert(`无法在主大纲中找到知识点 "${kpsToSync[0].title}" 所属分类 "${originalNsCat?.title || '未知'}" 的对应分类。请先确保分类结构已通过“导至主大纲”同步。`);
+        alert(`无法在主大纲中找到知识点 "${kpsToSync[0].title}" 所属分类 "${originalNsCat?.title || '未知'}" 的对应分类。请先确保分类结构已通过"导至主大纲"同步。`);
         return;
     }
      if (targetMainCategoryId === null && singleKpSync && !kpsToSync[0].syllabusItemId) {
@@ -668,7 +701,7 @@ const App: React.FC = () => {
     if (kpsAddedToMainList.length > 0) {
         alert(`${messageBase}${kpsAddedToMainList.length > 1 ? kpsAddedToMainList.length + " 个知识点" : (singleKpSync ? "" : "知识点")}已作为独立副本添加/更新到主大纲对应分类。`);
     } else if (kpsToSync.length > 0 && kpsAddedToMainList.length === 0) {
-        alert(`${messageBase}所有选定知识点似乎已在主大纲中存在对应项。主大纲中的副本可能已更新（内容取自新体系）。`);
+        alert(`${messageBase}所有选定知识点似乎已在主大纲中存在对应项。请检查'全部/未分类'。`);
     }
   };
   
@@ -989,7 +1022,7 @@ const App: React.FC = () => {
               onMoveKnowledgePointCategory={(itemId, newSyllabusId) => handleMoveKnowledgePointCategory(itemId, newSyllabusId, true)}
               onEditKnowledgePoint={(item) => handleEditItem(item)}
               onGraduateCategories={graduateNewSubjectCategoriesToMainSyllabus}
-              // Removed onSyncKnowledgePointsToMainByCategory prop
+              onMarkCategoryAsLearned={handleMarkCategoryAsLearned}
               onSyncSingleKnowledgePointToMain={syncSingleNewKnowledgeKpToMainSyllabus}
             />
           )}

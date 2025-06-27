@@ -42,7 +42,7 @@ VITE_API_KEY=AIzaSyAY1JopshkJP70BA6YASSw2x8dkyV_AcJk
 3. npm run build, if needed, npm i --save-dev @types/node
 4. git branch
 5. git add . 
-6. git commit -m "Your commit message"
+6. git commit -m "Your commit message" 
 7. git status  # should be 'no changes added to commit'
 8. git remote -v   # if incorrect github web, git remote remove origin # git remote add origin https://github.com/Edelweiss-myt/lanlearner_v2.git 
 9. git push origin main --force-with-lease
@@ -65,4 +65,5 @@ v2.1
 3. 知识点可分开更新至主‘大纲’对应目录下
 4. 添加'导入Notion'功能，将自动保存在Notion设定页面，新建Page
 5. 一级目录为Page name，二级为Heading_1，三级为Heading_2，知识点标题为Heading_3 ...
-6. 数据保护：添加‘最近删除’功能（v2.1）
+6. 添加“搭建新体系”下，“已学”功能，显示学习进度
+7. 数据保护：添加‘最近删除’功能（v2.1）

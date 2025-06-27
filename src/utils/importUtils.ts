@@ -18,6 +18,10 @@ const WORD_HEADERS = {
   PART_OF_SPEECH: '词性',
   EXAMPLE: '例句',
   NOTES: '备注',
+  CREATED_AT: '创建日期',
+  LAST_REVIEWED_AT: '上次复习',
+  NEXT_REVIEW_AT: '下次复习',
+  SRS_STAGE: '复习阶段',
 };
 
 const KP_HEADERS = {
@@ -25,6 +29,47 @@ const KP_HEADERS = {
   CONTENT: '内容',
   CATEGORY: '分类',
   NOTES: '备注',
+  CREATED_AT: '创建日期',
+  LAST_REVIEWED_AT: '上次复习',
+  NEXT_REVIEW_AT: '下次复习',
+  SRS_STAGE: '复习阶段',
+};
+
+const SYLLABUS_HEADERS = {
+  NAME: '分类名称',
+  PARENT_PATH: '父级分类路径',
+  IS_LEARNED: '是否已学完',
+};
+
+
+/**
+ * Parses a date from various potential Excel formats.
+ * Excel can return dates as numbers (days since 1900) or strings.
+ * It also handles the 'N/A' case for null dates.
+ * @param excelDate The value from the Excel cell.
+ * @returns An ISO string representation of the date, or null.
+ */
+const parseDate = (excelDate: any): string | null => {
+    if (excelDate === null || excelDate === undefined || typeof excelDate === 'string' && excelDate.toUpperCase() === 'N/A') {
+        return null;
+    }
+    // Handle Excel's numeric date format
+    if (typeof excelDate === 'number') {
+        // XLSX.SSF.parse_date_code is the recommended way to handle this.
+        const d = XLSX.SSF.parse_date_code(excelDate);
+        if (d) {
+            return new Date(Date.UTC(d.y, d.m - 1, d.d, d.H, d.M, d.S)).toISOString();
+        }
+    }
+    // Handle string dates (e.g., '2023-08-15' or ISO string)
+    if (typeof excelDate === 'string') {
+        const date = new Date(excelDate);
+        if (!isNaN(date.getTime())) {
+            return date.toISOString();
+        }
+    }
+    // Return null if parsing fails
+    return null;
 };
 
 
@@ -47,6 +92,7 @@ export const importDataFromExcel = async (
 
   const newItemsGeneratedThisImportSession: SyllabusItem[] = [];
   const currentSyllabusStateForLookup = [...existingSyllabusItems];
+  const learnedStatusMap = new Map<string, boolean>();
 
 
   const ensureSyllabusPath = (pathString: string | undefined): string | null => {
@@ -57,8 +103,10 @@ export const importDataFromExcel = async (
     const pathParts = pathString.split(SYLLABUS_PATH_SEPARATOR).map(part => part.trim()).filter(part => part.length > 0);
     let currentParentId: string | null = null;
     let lastProcessedItemId: string | null = null;
+    let currentPath = '';
 
     for (const partTitle of pathParts) {
+      currentPath = currentPath ? `${currentPath}${SYLLABUS_PATH_SEPARATOR}${partTitle}` : partTitle;
       let foundItem = currentSyllabusStateForLookup.find(
         item => item.title.toLowerCase() === partTitle.toLowerCase() &&
                 item.parentId === currentParentId &&
@@ -71,6 +119,7 @@ export const importDataFromExcel = async (
           id: newId,
           title: partTitle,
           parentId: currentParentId,
+          isLearned: learnedStatusMap.get(currentPath.toLowerCase()) || false,
         };
         
         currentSyllabusStateForLookup.push(newItem);
@@ -104,6 +153,24 @@ export const importDataFromExcel = async (
         }
         const workbook = XLSX.read(data, { type: 'array' });
 
+        // Process "New Knowledge Syllabus" sheet first to populate the learnedStatusMap
+        const syllabusSheetName = workbook.SheetNames.find(name => name.trim().toLowerCase() === '新知识大纲');
+        if (syllabusSheetName) {
+            const worksheet = workbook.Sheets[syllabusSheetName];
+            const jsonData = XLSX.utils.sheet_to_json<any>(worksheet);
+
+            jsonData.forEach(row => {
+                const name = row[SYLLABUS_HEADERS.NAME]?.toString().trim();
+                const parentPath = row[SYLLABUS_HEADERS.PARENT_PATH]?.toString().trim();
+                const isLearned = row[SYLLABUS_HEADERS.IS_LEARNED]?.toString().trim().toLowerCase() === '是';
+                
+                if (name && parentPath) {
+                    const fullPath = (parentPath.toLowerCase() === '顶级' ? name : `${parentPath}${SYLLABUS_PATH_SEPARATOR}${name}`).toLowerCase();
+                    learnedStatusMap.set(fullPath, isLearned);
+                }
+            });
+        }
+
         // Process Words Sheet
         const wordsSheetName = workbook.SheetNames.find(name => name.trim().toLowerCase() === '单词');
         if (wordsSheetName) {
@@ -124,6 +191,11 @@ export const importDataFromExcel = async (
                 return; // Skip this duplicate word
               }
 
+              const createdAtFromCell = parseDate(row[WORD_HEADERS.CREATED_AT]);
+              const lastReviewedAtFromCell = parseDate(row[WORD_HEADERS.LAST_REVIEWED_AT]);
+              const nextReviewAtFromCell = parseDate(row[WORD_HEADERS.NEXT_REVIEW_AT]);
+              const srsStageFromCell = parseInt(row[WORD_HEADERS.SRS_STAGE], 10);
+
               const newWord: WordItem = {
                 id: generateId(),
                 type: 'word',
@@ -132,10 +204,10 @@ export const importDataFromExcel = async (
                 partOfSpeech,
                 exampleSentence,
                 notes: row[WORD_HEADERS.NOTES]?.toString().trim() || undefined,
-                createdAt: new Date().toISOString(),
-                lastReviewedAt: null,
-                nextReviewAt: addDays(getTodayDateString(), SRS_INTERVALS_DAYS[0]).toISOString(),
-                srsStage: 0,
+                createdAt: createdAtFromCell || new Date().toISOString(),
+                lastReviewedAt: lastReviewedAtFromCell,
+                nextReviewAt: nextReviewAtFromCell || addDays(getTodayDateString(), SRS_INTERVALS_DAYS[0]).toISOString(),
+                srsStage: !isNaN(srsStageFromCell) ? srsStageFromCell : 0,
               };
               importedWords.push(newWord);
               wordsAdded++;
@@ -168,6 +240,11 @@ export const importDataFromExcel = async (
               }
 
               const syllabusItemId = ensureSyllabusPath(categoryPath);
+              
+              const createdAtFromCell = parseDate(row[KP_HEADERS.CREATED_AT]);
+              const lastReviewedAtFromCell = parseDate(row[KP_HEADERS.LAST_REVIEWED_AT]);
+              const nextReviewAtFromCell = parseDate(row[KP_HEADERS.NEXT_REVIEW_AT]);
+              const srsStageFromCell = parseInt(row[KP_HEADERS.SRS_STAGE], 10);
 
               const newKp: KnowledgePointItem = {
                 id: generateId(),
@@ -176,10 +253,10 @@ export const importDataFromExcel = async (
                 content,
                 syllabusItemId,
                 notes: row[KP_HEADERS.NOTES]?.toString().trim() || undefined,
-                createdAt: new Date().toISOString(),
-                lastReviewedAt: null,
-                nextReviewAt: addDays(getTodayDateString(), SRS_INTERVALS_DAYS[0]).toISOString(),
-                srsStage: 0,
+                createdAt: createdAtFromCell || new Date().toISOString(),
+                lastReviewedAt: lastReviewedAtFromCell,
+                nextReviewAt: nextReviewAtFromCell || addDays(getTodayDateString(), SRS_INTERVALS_DAYS[0]).toISOString(),
+                srsStage: !isNaN(srsStageFromCell) ? srsStageFromCell : 0,
               };
               importedKnowledgePoints.push(newKp);
               kpsAdded++;

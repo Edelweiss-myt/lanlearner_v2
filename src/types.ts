@@ -1,4 +1,3 @@
-
 export interface WordDefinition {
   definition: string;
   partOfSpeech: string;
@@ -36,6 +35,7 @@ export interface SyllabusItem {
   id: string;
   title: string;
   parentId: string | null;
+  isLearned?: boolean;
   // order: number; // For ordering items under the same parent
 }
 

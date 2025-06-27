@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { SyllabusItem, KnowledgePointItem, CurrentLearningPlan } from '../../types';
 import { KnowledgePointInputForm } from '../inputs/KnowledgePointInputForm';
@@ -13,6 +12,7 @@ interface NewKnowledgeArchitectureTabProps {
   onSetPrimaryCategoryAsSubject: (categoryId: string | null) => void; // Can be null to unset
   currentLearningPlan: CurrentLearningPlan | null;
   onSetLearningPlan: (plan: CurrentLearningPlan | null) => void;
+  onMarkCategoryAsLearned: (categoryId: string) => void;
   
   onAddSyllabusItem: (item: Omit<SyllabusItem, 'id'>) => void;
   onUpdateSyllabusItem: (item: SyllabusItem) => void;
@@ -33,6 +33,7 @@ export const NewKnowledgeArchitectureTab: React.FC<NewKnowledgeArchitectureTabPr
   onSetPrimaryCategoryAsSubject,
   currentLearningPlan,
   onSetLearningPlan,
+  onMarkCategoryAsLearned,
   onAddSyllabusItem,
   onUpdateSyllabusItem,
   onDeleteSyllabusItem,
@@ -92,6 +93,22 @@ export const NewKnowledgeArchitectureTab: React.FC<NewKnowledgeArchitectureTabPr
     return null;
   }, [currentLearningPlan, newKnowledgeSyllabus]);
 
+  const learningStats = useMemo(() => {
+    if (!primaryNewKnowledgeSubjectCategoryId) {
+      return { level1Total: 0, level1Learned: 0, level2Total: 0, level2Learned: 0 };
+    }
+    const level1Categories = newKnowledgeSyllabus.filter(s => s.parentId === primaryNewKnowledgeSubjectCategoryId);
+    const level1Ids = new Set(level1Categories.map(s => s.id));
+    const level2Categories = newKnowledgeSyllabus.filter(s => s.parentId && level1Ids.has(s.parentId));
+
+    return {
+      level1Total: level1Categories.length,
+      level1Learned: level1Categories.filter(s => s.isLearned).length,
+      level2Total: level2Categories.length,
+      level2Learned: level2Categories.filter(s => s.isLearned).length,
+    };
+  }, [newKnowledgeSyllabus, primaryNewKnowledgeSubjectCategoryId]);
+
   return (
     <div className="space-y-6">
       <div className="p-4 bg-secondary-50 border border-secondary-200 rounded-lg shadow">
@@ -104,20 +121,37 @@ export const NewKnowledgeArchitectureTab: React.FC<NewKnowledgeArchitectureTabPr
             </Button>
         </div>
         
-        <p className="text-md font-medium text-green-700 bg-green-100 p-2 rounded-md mb-3">
-          今日计划学习：
-          {currentLearningPlan ? (
-            <>
-              {currentLearningPlan.categoryName}
-              {primaryNewKnowledgeSubjectCategoryId &&
-               currentLearningPlan.subjectId !== primaryNewKnowledgeSubjectCategoryId &&
-               planSubjectName &&
-               ` (体系: ${planSubjectName})`}
-            </>
-          ) : (
-            "未设定"
-          )}
-        </p>
+        <div className="flex items-center justify-between text-md font-medium text-green-700 bg-green-100 p-2 rounded-md mb-3">
+            <span>
+                今日计划学习：
+                {currentLearningPlan ? (
+                    <>
+                    {currentLearningPlan.categoryName}
+                    {primaryNewKnowledgeSubjectCategoryId &&
+                    currentLearningPlan.subjectId !== primaryNewKnowledgeSubjectCategoryId &&
+                    planSubjectName &&
+                    ` (体系: ${planSubjectName})`}
+                    </>
+                ) : (
+                    "未设定"
+                )}
+            </span>
+            <Button
+                size="sm"
+                variant="primary"
+                onClick={() => currentLearningPlan && onMarkCategoryAsLearned(currentLearningPlan.categoryId)}
+                disabled={!currentLearningPlan}
+            >
+                已学完
+            </Button>
+        </div>
+        
+        {primaryNewKnowledgeSubjectCategoryId && (
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 mb-4 grid grid-cols-2 gap-x-4">
+            <div><span className="font-semibold">一级条目完成:</span> {learningStats.level1Learned} / {learningStats.level1Total}</div>
+            <div><span className="font-semibold">二级条目完成:</span> {learningStats.level2Learned} / {learningStats.level2Total}</div>
+          </div>
+        )}
             
         <SyllabusManager
             syllabusItems={newKnowledgeSyllabus}
