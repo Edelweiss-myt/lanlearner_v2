@@ -456,11 +456,6 @@ const App: React.FC = () => {
             persistNewKnowledgeKnowledgePoints(newKnowledgeKnowledgePoints.filter(kp => kp.id !== itemId));
           } else if (itemToDelete) {
             persistKnowledgePoints(knowledgePoints.filter(kp => kp.id !== itemId));
-            // De-linking deletion: The following lines that deleted the corresponding new knowledge KP are removed.
-            // const mainKp = itemToDelete as KnowledgePointItem;
-            // if (mainKp.masterId) {
-            //    persistNewKnowledgeKnowledgePoints(newKnowledgeKnowledgePoints.filter(nkKp => nkKp.id !== mainKp.masterId));
-            // }
           }
         }
 

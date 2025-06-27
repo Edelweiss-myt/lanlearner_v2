@@ -41,7 +41,6 @@ const SYLLABUS_HEADERS = {
   IS_LEARNED: '是否已学完',
 };
 
-
 /**
  * Parses a date from various potential Excel formats.
  * Excel can return dates as numbers (days since 1900) or strings.
