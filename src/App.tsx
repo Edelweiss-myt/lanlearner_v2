@@ -262,6 +262,39 @@ const App: React.FC = () => {
     persistNewKnowledgeSyllabus(updatedSyllabus);
   }, [newKnowledgeSyllabus, persistNewKnowledgeSyllabus]);
 
+  const handleMarkCategoryAsUnlearned = useCallback((categoryId: string) => {
+    setNewKnowledgeSyllabus(prevSyllabus => {
+        let updatedSyllabus = [...prevSyllabus];
+        const itemsToUpdate = new Set<string>();
+
+        const findDescendants = (id: string) => {
+            itemsToUpdate.add(id);
+            const children = updatedSyllabus.filter(item => item.parentId === id);
+            children.forEach(child => findDescendants(child.id));
+        };
+        findDescendants(categoryId);
+
+        updatedSyllabus = updatedSyllabus.map(item =>
+            itemsToUpdate.has(item.id) ? { ...item, isLearned: false } : item
+        );
+
+        const updateAncestors = (childId: string, currentUpdatedSyllabus: SyllabusItem[]) => {
+            const child = currentUpdatedSyllabus.find(s => s.id === childId);
+            if (!child?.parentId || child.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) return currentUpdatedSyllabus;
+
+            const parentIndex = currentUpdatedSyllabus.findIndex(s => s.id === child.parentId);
+            if (parentIndex !== -1 && currentUpdatedSyllabus[parentIndex].isLearned) {
+                currentUpdatedSyllabus[parentIndex] = { ...currentUpdatedSyllabus[parentIndex], isLearned: false };
+                return updateAncestors(currentUpdatedSyllabus[parentIndex].id, currentUpdatedSyllabus);
+            }
+            return currentUpdatedSyllabus;
+        };
+
+        updatedSyllabus = updateAncestors(categoryId, updatedSyllabus);
+        persistNewKnowledgeSyllabus(updatedSyllabus);
+        return updatedSyllabus;
+    });
+  }, [newKnowledgeSyllabus, persistNewKnowledgeSyllabus]);
 
   const persistEbooks = useCallback((updatedEbooks: Ebook[]) => {
     setEbooks(updatedEbooks);
@@ -753,29 +786,30 @@ const App: React.FC = () => {
 
 
   const handleExportData = () => {
-    const primaryNkSubjectCat = newKnowledgeSyllabus.find(s => s.id === primaryNewKnowledgeSubjectCategoryId);
-    const kpsOfPrimary = primaryNkSubjectCat
-      ? newKnowledgeKnowledgePoints.filter(kp => kp.subjectId === primaryNkSubjectCat.id)
-      : [];
-    const syllabusOfPrimary = primaryNkSubjectCat
-      ? [primaryNkSubjectCat, ...newKnowledgeSyllabus.filter(s => {
-          let current = s;
-          while(current.parentId && current.parentId !== NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
-              if (current.parentId === primaryNkSubjectCat.id) return true;
-              current = newKnowledgeSyllabus.find(parent => parent.id === current.parentId)!;
-              if(!current) return false;
-          }
-          return false;
-      })]
-      : [];
+    const newKnowledgeSubjectsData: {
+        sheetName: string;
+        kps: KnowledgePointItem[];
+    }[] = [];
+
+    const topLevelSubjects = newKnowledgeSyllabus.filter(
+        s => s.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID
+    );
+
+    topLevelSubjects.forEach(subject => {
+        const subjectKps = newKnowledgeKnowledgePoints.filter(kp => kp.subjectId === subject.id);
+        
+        newKnowledgeSubjectsData.push({
+            sheetName: subject.title,
+            kps: subjectKps
+        });
+    });
       
     exportDataToExcel(
         words,
         knowledgePoints,
         syllabus,
-        kpsOfPrimary,
-        syllabusOfPrimary,
-        primaryNkSubjectCat ? primaryNkSubjectCat.title : null
+        newKnowledgeSyllabus,
+        newKnowledgeSubjectsData
     );
   };
 
@@ -791,25 +825,42 @@ const App: React.FC = () => {
 
     setImportMessage("正在导入数据...");
     try {
-      const { importedWords: newWordsFromExcel, importedKnowledgePoints: newKpsFromExcel, newlyCreatedSyllabusItems, message } =
-        await importDataFromExcel(file, syllabus, generateId, words, knowledgePoints);
+      const { 
+        importedWords, 
+        importedMainKnowledgePoints,
+        importedNewKnowledgePoints,
+        newlyCreatedMainSyllabusItems,
+        newlyCreatedNewKnowledgeSyllabusItems,
+        message 
+      } = await importDataFromExcel(
+        file, 
+        syllabus,
+        knowledgePoints,
+        newKnowledgeSyllabus,
+        newKnowledgeKnowledgePoints,
+        generateId, 
+        words
+      );
 
-      if (newlyCreatedSyllabusItems.length > 0) {
-        const currentSyllabusIds = new Set(syllabus.map(s => s.id));
-        const trulyNewItems = newlyCreatedSyllabusItems.filter(newItem => !currentSyllabusIds.has(newItem.id));
-        if (trulyNewItems.length > 0) {
-           persistSyllabus([...syllabus, ...trulyNewItems]);
-        }
+      if (newlyCreatedMainSyllabusItems.length > 0) {
+        persistSyllabus([...syllabus, ...newlyCreatedMainSyllabusItems]);
+      }
+      if (newlyCreatedNewKnowledgeSyllabusItems.length > 0) {
+        persistNewKnowledgeSyllabus([...newKnowledgeSyllabus, ...newlyCreatedNewKnowledgeSyllabusItems]);
       }
 
-      const newKpsWithMasterId = newKpsFromExcel.map(kp => ({...kp, masterId: kp.id})); // For imported KPs, masterId is self.
-
-      if (newWordsFromExcel.length > 0) {
-        persistWords([...words, ...newWordsFromExcel]);
+      if (importedWords.length > 0) {
+        persistWords([...words, ...importedWords]);
       }
-      if (newKpsWithMasterId.length > 0) {
+      if (importedMainKnowledgePoints.length > 0) {
+        const newKpsWithMasterId = importedMainKnowledgePoints.map(kp => ({...kp, masterId: kp.id}));
         persistKnowledgePoints([...knowledgePoints, ...newKpsWithMasterId]);
       }
+      if (importedNewKnowledgePoints.length > 0) {
+        const newKpsWithMasterId = importedNewKnowledgePoints.map(kp => ({...kp, masterId: kp.id}));
+        persistNewKnowledgeKnowledgePoints([...newKnowledgeKnowledgePoints, ...newKpsWithMasterId]);
+      }
+      
       setImportMessage(message);
       
     } catch (err) {
@@ -997,7 +1048,7 @@ const App: React.FC = () => {
               onDeleteEbook={handleDeleteEbook}
               isNewSubjectContext={false}
               currentSubjectRootId={SYLLABUS_ROOT_ID}
-              currentSubjectName="主大纲"
+              currentSubjectName="主大纲（知识点）"
             />
           )}
           {activeTab === ActiveTab.BuildNewSystem && (
@@ -1018,6 +1069,7 @@ const App: React.FC = () => {
               onEditKnowledgePoint={(item) => handleEditItem(item)}
               onGraduateCategories={graduateNewSubjectCategoriesToMainSyllabus}
               onMarkCategoryAsLearned={handleMarkCategoryAsLearned}
+              onMarkCategoryAsUnlearned={handleMarkCategoryAsUnlearned}
               onSyncSingleKnowledgePointToMain={syncSingleNewKnowledgeKpToMainSyllabus}
             />
           )}
@@ -1088,7 +1140,7 @@ const App: React.FC = () => {
             isOpen={isNotionExportModalOpen}
             onClose={() => setIsNotionExportModalOpen(false)}
             onExportSelected={handleNotionExportSelection}
-            mainSyllabusName="主大纲"
+            mainSyllabusName="主大纲（知识点）"
             primaryNewKnowledgeSubject={primaryNewKnowledgeSubjectCategory ? {id: primaryNewKnowledgeSubjectCategory.id, name: primaryNewKnowledgeSubjectCategory.title} : null}
         />
       )}

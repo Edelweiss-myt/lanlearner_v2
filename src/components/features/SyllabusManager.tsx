@@ -27,12 +27,14 @@ interface SyllabusManagerProps {
   onSetLearningPlanForCategory?: (categoryId: string, categoryName: string) => void;
   primaryNewKnowledgeSubjectCategoryId?: string | null; // For "BuildNewSystem" context
   onSetPrimaryCategoryAsSubject?: (categoryId: string | null) => void; // For "BuildNewSystem" context
+  onMarkAsUnlearned?: (id: string) => void;
 }
 
 interface EditableSyllabusItem {
   id?: string;
   title: string;
   parentId: string | null;
+  isLearned?: boolean;
 }
 
 const UNCATEGORIZED_TEXT = "全部 / 未分类";
@@ -59,21 +61,28 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
     onSetLearningPlanForCategory,
     primaryNewKnowledgeSubjectCategoryId,
     onSetPrimaryCategoryAsSubject,
+    onMarkAsUnlearned,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<EditableSyllabusItem | null>(null);
   const [selectedSyllabusId, setSelectedSyllabusId] = useState<string | null>(currentSubjectRootId);
   const [collapsedItems, setCollapsedItems] = useState<Set<string>>(() => {
     if (isNewSubjectContext) {
-      // In "Build New System" context, collapse all top-level categories by default.
-      // This achieves the goal of "showing level 1, collapsing level 2".
-      const topLevelItemIds = new Set<string>();
+      // For the "New Knowledge" view, initialize all categories with children to be collapsed.
+      const parentIds = new Set<string>();
       syllabusItems.forEach(item => {
-        if (item.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
-          topLevelItemIds.add(item.id);
+        // Only consider items that are part of the current syllabus context
+        if (item.parentId && item.parentId !== NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
+           parentIds.add(item.parentId);
         }
       });
-      return topLevelItemIds;
+       // Also add all top-level categories to be collapsed by default
+       syllabusItems.forEach(item => {
+         if (item.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
+           parentIds.add(item.id);
+         }
+       })
+      return parentIds;
     }
     return new Set<string>(); // Default for other views: start expanded.
   });
@@ -85,7 +94,7 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
 
   const openModal = (item?: SyllabusItem) => {
     const parentForNew = selectedSyllabusId || currentSubjectRootId;
-    setEditingItem(item ? { ...item } : { title: '', parentId: parentForNew });
+    setEditingItem(item ? { ...item } : { title: '', parentId: parentForNew, isLearned: false });
     setIsModalOpen(true);
   };
 
@@ -182,7 +191,7 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
                 </span>
                   {isNewSubjectContext && item.id === primaryNewKnowledgeSubjectCategoryId && <span className="text-xs text-green-700 font-semibold ml-1 flex-shrink-0">(主学)</span>}
                 </div>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col space-y-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur-sm p-1 rounded-md shadow-lg">
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-row items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur-sm p-1 rounded-md shadow-lg">
                   {isNewSubjectContext && onSetPrimaryCategoryAsSubject && isTopLevelSubjectCategory && item.id !== primaryNewKnowledgeSubjectCategoryId && (
                     <Button
                       size="sm"
@@ -417,11 +426,19 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
             {isNewSubjectContext && <p className="text-xs text-gray-500 mt-1">分类将添加到 "{currentSubjectName}" 下。</p>}
           </div>
           <div className="flex justify-between items-center mt-6">
-              <div>
+              <div className="flex items-center space-x-2">
                 {editingItem?.id && (
                   <Button variant="danger" onClick={() => handleDeleteSyllabusItem(editingItem.id!)}>
                     删除
                   </Button>
+                )}
+                {editingItem?.id && editingItem.isLearned && onMarkAsUnlearned && (
+                    <Button variant="warning" onClick={() => {
+                        onMarkAsUnlearned(editingItem.id!);
+                        closeModal();
+                    }}>
+                        标记为未学
+                    </Button>
                 )}
               </div>
               <div className="flex space-x-2">

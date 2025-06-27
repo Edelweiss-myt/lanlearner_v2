@@ -13,6 +13,7 @@ interface NewKnowledgeArchitectureTabProps {
   currentLearningPlan: CurrentLearningPlan | null;
   onSetLearningPlan: (plan: CurrentLearningPlan | null) => void;
   onMarkCategoryAsLearned: (categoryId: string) => void;
+  onMarkCategoryAsUnlearned: (categoryId: string) => void;
   
   onAddSyllabusItem: (item: Omit<SyllabusItem, 'id'>) => void;
   onUpdateSyllabusItem: (item: SyllabusItem) => void;
@@ -34,6 +35,7 @@ export const NewKnowledgeArchitectureTab: React.FC<NewKnowledgeArchitectureTabPr
   currentLearningPlan,
   onSetLearningPlan,
   onMarkCategoryAsLearned,
+  onMarkCategoryAsUnlearned,
   onAddSyllabusItem,
   onUpdateSyllabusItem,
   onDeleteSyllabusItem,
@@ -148,7 +150,7 @@ export const NewKnowledgeArchitectureTab: React.FC<NewKnowledgeArchitectureTabPr
         
         {primaryNewKnowledgeSubjectCategoryId && (
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 mb-4 grid grid-cols-2 gap-x-4">
-            <div><span className="font-semibold">完成：一级 </span>  {learningStats.level1Learned} / {learningStats.level1Total}</div>
+            <div><span className="font-semibold">完成条目  ：一级 </span>  {learningStats.level1Learned} / {learningStats.level1Total}</div>
             <div><span className="font-semibold">二级 </span>   {learningStats.level2Learned} / {learningStats.level2Total}</div>
           </div>
         )}
@@ -173,6 +175,7 @@ export const NewKnowledgeArchitectureTab: React.FC<NewKnowledgeArchitectureTabPr
             onSetLearningPlanForCategory={handleSetPlanForCategory}
             primaryNewKnowledgeSubjectCategoryId={primaryNewKnowledgeSubjectCategoryId}
             onSetPrimaryCategoryAsSubject={onSetPrimaryCategoryAsSubject}
+            onMarkAsUnlearned={onMarkCategoryAsUnlearned}
         />
          <div className="mt-6">
             <KnowledgePointInputForm
