@@ -1,16 +1,15 @@
 # Run and deploy your AI Studio app
 
-This contains everything you need to run your app locally.
 
 ## Run Locally
 
 **Prerequisites:**  Node.js
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+   npm install, if any conflict rm package-lock.json, rm -rf node_modules
+2. Set the API_KEY in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
-   `npm run dev`
+   npm run dev
 
 
 ## Run Online
@@ -32,18 +31,18 @@ dist
 VITE_API_KEY=AIzaSyAY1JopshkJP70BA6YASSw2x8dkyV_AcJk
 
 
-## Update Online
 
-1. If needed, npm install , rm package-lock.json, rm -rf node_modules
-2. npm run dev
+# Update Online
+
+1. npm run dev
    
-3. npm run build, if needed, npm i --save-dev @types/node
-4. git branch
-5. git add . 
-6. git commit -m "Your commit message" 
-7. git status  # should be 'no changes added to commit'
-8. git remote -v   # if incorrect github web, git remote remove origin # git remote add origin https://github.com/Edelweiss-myt/lanlearner_v2.git 
-9. git push origin main --force-with-lease
+2. if needed, npm run build
+3. git branch
+4. git add . 
+5. git commit -m "" 
+6. git status  # should be 'no changes added to commit'
+7. git remote -v   # if incorrect github web, git remote remove origin # git remote add origin https://github.com/Edelweiss-myt/lanlearner_v2.git 
+8. git push origin main --force-with-lease
     If failed, git branch --set-upstream-to=origin/main main, git pull, git push
 
 

@@ -148,8 +148,8 @@ export const NewKnowledgeArchitectureTab: React.FC<NewKnowledgeArchitectureTabPr
         
         {primaryNewKnowledgeSubjectCategoryId && (
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 mb-4 grid grid-cols-2 gap-x-4">
-            <div><span className="font-semibold">完成：一级条目 </span>  {learningStats.level1Learned} / {learningStats.level1Total}</div>
-            <div><span className="font-semibold">二级条目 </span>   {learningStats.level2Learned} / {learningStats.level2Total}</div>
+            <div><span className="font-semibold">完成：一级 </span>  {learningStats.level1Learned} / {learningStats.level1Total}</div>
+            <div><span className="font-semibold">二级 </span>   {learningStats.level2Learned} / {learningStats.level2Total}</div>
           </div>
         )}
             
