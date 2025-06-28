@@ -17,8 +17,12 @@ const triggerDownload = (data: Blob, filename: string) => {
   link.style.visibility = 'hidden';
   document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  
+  // Add a small delay before removing the link to ensure the download is initiated, especially on mobile browsers.
+  setTimeout(() => {
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, 100);
 };
 
 const formatNullableDate = (dateString: string | null): string => {
