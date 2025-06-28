@@ -142,8 +142,6 @@ export const exportDataToExcel = (
   if (navigator.share && navigator.canShare && navigator.canShare({ files: [excelFile] })) {
     navigator.share({
       files: [excelFile],
-      title: '学习数据导出',
-      text: `您的 Lanlearner 学习数据: ${filename}`,
     }).catch((error) => {
       if (error.name !== 'AbortError') {
         console.error('分享文件时出错:', error);
