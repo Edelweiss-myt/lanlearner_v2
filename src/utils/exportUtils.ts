@@ -135,10 +135,24 @@ export const exportDataToExcel = (
   const dateString = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
   const filename = `Lanlearner_学习数据_${dateString}.xlsx`;
   
-  // Generate buffer
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-  // Create a blob
   const data = new Blob([excelBuffer], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8'});
-  
-  triggerDownload(data, filename);
+  const excelFile = new File([data], filename, { type: data.type });
+
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [excelFile] })) {
+    navigator.share({
+      files: [excelFile],
+      title: '学习数据导出',
+      text: `您的 Lanlearner 学习数据: ${filename}`,
+    }).catch((error) => {
+      if (error.name !== 'AbortError') {
+        console.error('分享文件时出错:', error);
+        // 如果出现意外错误，回退到传统下载方式
+        triggerDownload(data, filename);
+      }
+    });
+  } else {
+    // 桌面端或不支持的浏览器回退到传统下载方式
+    triggerDownload(data, filename);
+  }
 };
