@@ -137,20 +137,22 @@ export const exportDataToExcel = (
   
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
   const data = new Blob([excelBuffer], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8'});
-  const excelFile = new File([data], filename, { type: data.type });
+  
+  const filesToShare = [new File([data], filename, { type: data.type })];
 
-  if (navigator.share && navigator.canShare && navigator.canShare({ files: [excelFile] })) {
+  // For iOS PWA bug, only share files property.
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: filesToShare })) {
     navigator.share({
-      files: [excelFile],
+      files: filesToShare,
     }).catch((error) => {
       if (error.name !== 'AbortError') {
         console.error('分享文件时出错:', error);
-        // 如果出现意外错误，回退到传统下载方式
+        // Fallback to traditional download if sharing fails for any reason other than user cancellation.
         triggerDownload(data, filename);
       }
     });
   } else {
-    // 桌面端或不支持的浏览器回退到传统下载方式
+    // Fallback for desktop or unsupported browsers.
     triggerDownload(data, filename);
   }
 };
