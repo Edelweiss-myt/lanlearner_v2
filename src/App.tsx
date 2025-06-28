@@ -390,13 +390,17 @@ const App: React.FC = () => {
     const newKpId = generateId();
     let topLevelSubjectCatId: string | undefined = undefined;
 
-    if (isNewKnowledgeContext && kp.syllabusItemId) {
-        let current: SyllabusItem | undefined = newKnowledgeSyllabus.find(s => s.id === kp.syllabusItemId);
-        while (current && current.parentId !== NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
-            current = newKnowledgeSyllabus.find(s => s.id === current!.parentId);
-        }
-        if (current && current.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
-            topLevelSubjectCatId = current.id;
+    if (isNewKnowledgeContext) {
+        if (kp.syllabusItemId) {
+            let current: SyllabusItem | undefined = newKnowledgeSyllabus.find(s => s.id === kp.syllabusItemId);
+            while (current && current.parentId !== NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
+                current = newKnowledgeSyllabus.find(s => s.id === current!.parentId);
+            }
+            if (current && current.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
+                topLevelSubjectCatId = current.id;
+            }
+        } else if (primaryNewKnowledgeSubjectCategoryId) {
+            topLevelSubjectCatId = primaryNewKnowledgeSubjectCategoryId;
         }
     }
     
@@ -417,7 +421,7 @@ const App: React.FC = () => {
     } else {
       persistKnowledgePoints([...knowledgePoints, newKp]);
     }
-  }, [knowledgePoints, persistKnowledgePoints, newKnowledgeSyllabus, newKnowledgeKnowledgePoints, persistNewKnowledgeKnowledgePoints]);
+  }, [knowledgePoints, persistKnowledgePoints, newKnowledgeSyllabus, newKnowledgeKnowledgePoints, persistNewKnowledgeKnowledgePoints, primaryNewKnowledgeSubjectCategoryId]);
 
 
   const updateStudyItem = useCallback((updatedItem: WordItem | KnowledgePointItem) => {

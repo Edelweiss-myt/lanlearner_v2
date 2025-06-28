@@ -8,6 +8,19 @@ interface NewKnowledgeSubjectData {
   kps: KnowledgePointItem[];
 }
 
+const triggerDownload = (data: Blob, filename: string) => {
+  // For modern browsers
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(data);
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
 const formatNullableDate = (dateString: string | null): string => {
   return dateString ? formatDate(new Date(dateString)) : 'N/A';
 };
@@ -117,5 +130,11 @@ export const exportDataToExcel = (
   const today = new Date();
   const dateString = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
   const filename = `Lanlearner_学习数据_${dateString}.xlsx`;
-  XLSX.writeFile(workbook, filename);
+  
+  // Generate buffer
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  // Create a blob
+  const data = new Blob([excelBuffer], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8'});
+  
+  triggerDownload(data, filename);
 };
