@@ -34,6 +34,8 @@ export type NotionBlockType =
   | 'heading_3'
   | 'quote'
   | 'divider'
+  | 'image'
+  | 'toggle'
   | 'table_of_contents';
 
 export interface NotionBlock {
@@ -67,6 +69,25 @@ export const createNotionDividerBlock = (): NotionBlock => ({
     object: 'block',
     type: 'divider',
     divider: {},
+});
+
+export const createNotionToggleBlock = (richText: NotionRichText[], children: NotionBlock[]): NotionBlock => ({
+    object: 'block',
+    type: 'toggle',
+    toggle: {
+        rich_text: richText,
+        children: children,
+    }
+});
+
+export const createNotionImageBlock = (url: string, caption?: NotionRichText[]): NotionBlock => ({
+    object: 'block',
+    type: 'image',
+    image: {
+        type: 'external',
+        external: { url },
+        ...(caption && { caption }),
+    }
 });
 
 export const createNotionTableOfContentsBlock = (): NotionBlock => ({
@@ -160,6 +181,16 @@ export const generateNotionBlocksForSyllabusStructure = (
         contentLines.forEach(line => {
             blocks.push(createNotionParagraphBlock([{ type: 'text', text: { content: line } }]));
         });
+
+        if (kp.imageUrl) {
+            const imageNameText = kp.imageName || 'Image';
+            const imageBlock = createNotionImageBlock(kp.imageUrl);
+            const toggleBlock = createNotionToggleBlock(
+                [{ type: 'text', text: { content: imageNameText } }],
+                [imageBlock]
+            );
+            blocks.push(toggleBlock);
+        }
 
         if (kp.notes) {
           const noteLines = kp.notes.split('\n').filter(line => line.trim() !== '');

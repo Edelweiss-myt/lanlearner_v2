@@ -29,6 +29,8 @@ export interface KnowledgePointItem extends StudyItem {
   syllabusItemId: string | null; // ID of the category it belongs to
   masterId?: string; // Used to link a new subject KP with its counterpart in the main syllabus
   subjectId?: string; // For KPs in newKnowledgeSyllabus, this is the ID of their top-level "subject" category.
+  imageUrl?: string; // URL or base64 data URL for an associated image
+  imageName?: string; // Original name of the image file
 }
 
 export interface SyllabusItem {

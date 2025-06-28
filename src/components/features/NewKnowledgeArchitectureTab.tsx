@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { SyllabusItem, KnowledgePointItem, CurrentLearningPlan } from '../../types';
 import { KnowledgePointInputForm } from '../inputs/KnowledgePointInputForm';
 import { SyllabusManager } from './SyllabusManager';
@@ -48,6 +48,7 @@ export const NewKnowledgeArchitectureTab: React.FC<NewKnowledgeArchitectureTabPr
   onSyncSingleKnowledgePointToMain,
 }) => {
 
+  const [selectedSyllabusId, setSelectedSyllabusId] = useState<string | null>(NEW_KNOWLEDGE_SYLLABUS_ROOT_ID);
   const primarySubjectCategory = useMemo(() =>
     newKnowledgeSyllabus.find(s => s.id === primaryNewKnowledgeSubjectCategoryId),
   [newKnowledgeSyllabus, primaryNewKnowledgeSubjectCategoryId]);
@@ -176,6 +177,8 @@ export const NewKnowledgeArchitectureTab: React.FC<NewKnowledgeArchitectureTabPr
             primaryNewKnowledgeSubjectCategoryId={primaryNewKnowledgeSubjectCategoryId}
             onSetPrimaryCategoryAsSubject={onSetPrimaryCategoryAsSubject}
             onMarkAsUnlearned={onMarkCategoryAsUnlearned}
+            selectedSyllabusId={selectedSyllabusId}
+            onSelectSyllabusId={setSelectedSyllabusId}
         />
          <div className="mt-6">
             <KnowledgePointInputForm
@@ -184,6 +187,7 @@ export const NewKnowledgeArchitectureTab: React.FC<NewKnowledgeArchitectureTabPr
             isNewSubjectContext={true}
             syllabusRootId={NEW_KNOWLEDGE_SYLLABUS_ROOT_ID}
             activeNewSubjectNameProp={primarySubjectCategory?.title || null} // Pass null if no primary subject
+            preferredSyllabusId={selectedSyllabusId}
             />
         </div>
       </div>

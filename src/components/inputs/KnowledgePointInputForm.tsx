@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { KnowledgePointItem, SyllabusItem } from '../../types';
 import { Button } from '../common/Button';
 // Removed unused import: import { SYLLABUS_ROOT_ID, NEW_KNOWLEDGE_SYLLABUS_ROOT_ID } from '../../constants';
@@ -10,6 +9,7 @@ interface KnowledgePointInputFormProps {
   isNewSubjectContext: boolean; // True if this form is for the newKnowledgeSyllabus
   syllabusRootId: string; // SYLLABUS_ROOT_ID or NEW_KNOWLEDGE_SYLLABUS_ROOT_ID
   activeNewSubjectNameProp?: string | null; // Name of the primary "subject" category if in new knowledge context
+  preferredSyllabusId?: string | null;
 }
 
 export const KnowledgePointInputForm: React.FC<KnowledgePointInputFormProps> = ({
@@ -17,18 +17,42 @@ export const KnowledgePointInputForm: React.FC<KnowledgePointInputFormProps> = (
   syllabusItems,
   isNewSubjectContext,
   syllabusRootId,
-  activeNewSubjectNameProp
+  activeNewSubjectNameProp,
+  preferredSyllabusId
 }) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [selectedSyllabusId, setSelectedSyllabusId] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
+  const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
+  const [imageName, setImageName] = useState<string | undefined>(undefined);
+  const [imageExtension, setImageExtension] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  React.useEffect(() => {
-    setSelectedSyllabusId(null);
-  }, [syllabusRootId, syllabusItems, activeNewSubjectNameProp]);
+  useEffect(() => {
+    setSelectedSyllabusId(preferredSyllabusId || null);
+  }, [preferredSyllabusId]);
 
+  useEffect(() => {
+    if (!preferredSyllabusId) {
+      setSelectedSyllabusId(null);
+    }
+  }, [syllabusRootId, syllabusItems, activeNewSubjectNameProp, preferredSyllabusId]);
+
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImageUrl(reader.result as string);
+        const extension = file.name.slice(file.name.lastIndexOf('.'));
+        setImageExtension(extension);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,11 +65,18 @@ export const KnowledgePointInputForm: React.FC<KnowledgePointInputFormProps> = (
       content: content.trim(),
       syllabusItemId: selectedSyllabusId,
       notes: notes.trim() || undefined,
+      imageUrl,
+      imageName: imageName ? `${imageName.trim()}${imageExtension}` : undefined,
     });
     setTitle('');
     setContent('');
     setNotes('');
-    setSelectedSyllabusId(null);
+    setImageUrl(undefined);
+    setImageName(undefined);
+    setImageExtension(undefined);
+    if (!preferredSyllabusId) {
+        setSelectedSyllabusId(null);
+    }
     setError(null);
   };
 
@@ -99,6 +130,38 @@ export const KnowledgePointInputForm: React.FC<KnowledgePointInputFormProps> = (
             className="mt-1 shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border border-gray-300 rounded-md p-2"
             placeholder="解释概念，提供例子等。"
           ></textarea>
+        </div>
+        <div>
+           <label className="block text-sm font-medium text-gray-700">图片 (可选)</label>
+           <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+            accept="image/*"
+          />
+          {imageUrl ? (
+            <div className="mt-2 space-y-2">
+              <img src={imageUrl} alt="Preview" className="max-h-40 rounded-lg border" />
+              <div>
+                <label htmlFor={`kp-image-name-${syllabusRootId}`} className="block text-sm font-medium text-gray-700">图片名称 (可选)</label>
+                <div className="mt-1 flex items-center">
+                  <input
+                      type="text"
+                      id={`kp-image-name-${syllabusRootId}`}
+                      value={imageName || ''}
+                      onChange={(e) => setImageName(e.target.value)}
+                      className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border border-gray-300 rounded-md p-2"
+                      placeholder="为图片添加一个名称"
+                  />
+                  {imageExtension && <span className="ml-2 text-gray-500">{imageExtension}</span>}
+                </div>
+              </div>
+              <Button type="button" onClick={() => { setImageUrl(undefined); setImageName(undefined); setImageExtension(undefined); }} className="mt-2" variant="danger_outline">移除图片</Button>
+            </div>
+          ) : (
+            <Button type="button" onClick={() => fileInputRef.current?.click()} className="mt-2">添加图片</Button>
+          )}
         </div>
         <div>
           <label htmlFor={`kp-syllabus-${syllabusRootId}`} className="block text-sm font-medium text-gray-700">

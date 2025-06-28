@@ -28,6 +28,8 @@ interface SyllabusManagerProps {
   primaryNewKnowledgeSubjectCategoryId?: string | null; // For "BuildNewSystem" context
   onSetPrimaryCategoryAsSubject?: (categoryId: string | null) => void; // For "BuildNewSystem" context
   onMarkAsUnlearned?: (id: string) => void;
+  selectedSyllabusId: string | null;
+  onSelectSyllabusId: (id: string | null) => void;
 }
 
 interface EditableSyllabusItem {
@@ -62,10 +64,11 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
     primaryNewKnowledgeSubjectCategoryId,
     onSetPrimaryCategoryAsSubject,
     onMarkAsUnlearned,
+    selectedSyllabusId,
+    onSelectSyllabusId,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<EditableSyllabusItem | null>(null);
-  const [selectedSyllabusId, setSelectedSyllabusId] = useState<string | null>(currentSubjectRootId);
   const [collapsedItems, setCollapsedItems] = useState<Set<string>>(() => {
     if (isNewSubjectContext) {
       // For the "New Knowledge" view, initialize all categories with children to be collapsed.
@@ -89,7 +92,7 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
   const ebookFileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
-    setSelectedSyllabusId(currentSubjectRootId);
+    onSelectSyllabusId(currentSubjectRootId);
   }, [currentSubjectRootId]);
 
   const openModal = (item?: SyllabusItem) => {
@@ -128,7 +131,7 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
     const confirmMessage = `您确定要删除此分类 "${itemToDelete?.title || '未知'}" 及其所有子分类吗？相关的知识点将变为未分类。此操作不可逆。`;
     if (window.confirm(confirmMessage)) {
       onDeleteItem(id);
-      if(selectedSyllabusId === id) setSelectedSyllabusId(currentSubjectRootId);
+      if(selectedSyllabusId === id) onSelectSyllabusId(currentSubjectRootId);
       closeModal();
     }
   };
@@ -183,7 +186,7 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
                     </span>
                   )}
                 <span
-                  onClick={() => setSelectedSyllabusId(item.id)}
+                  onClick={() => onSelectSyllabusId(item.id)}
                     className={`cursor-pointer ${!hasChildren ? 'ml-4' : ''} ${selectedSyllabusId === item.id ? 'font-bold text-primary-600' : (item.isLearned ? 'text-green-700' : 'text-gray-900')}`}
                     title={item.title}
                 >
@@ -313,7 +316,7 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
         <div className={`md:col-span-2 p-3 border rounded-md ${isNewSubjectContext ? 'bg-secondary-50' : 'bg-gray-50'} max-h-96 overflow-y-auto`}>
           <h4 className="font-semibold mb-2 text-gray-600">分类</h4>
            <div
-                onClick={() => setSelectedSyllabusId(currentSubjectRootId)}
+                onClick={() => onSelectSyllabusId(currentSubjectRootId)}
                 className={`p-2 cursor-pointer rounded-md ${selectedSyllabusId === currentSubjectRootId ? 'font-bold text-primary-600 bg-primary-100' : 'hover:bg-gray-100'}`}
             >
                 { isNewSubjectContext ? "新知识体系" : (currentSubjectName === "主大纲" ? UNCATEGORIZED_TEXT : `${currentSubjectName} (全部/未分类)`) }

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { LearningItem, SyllabusItem, KnowledgePointItem } from '../../types';
 import { Button } from '../common/Button';
@@ -81,7 +80,7 @@ export const StudyItemCard: React.FC<StudyItemCardProps> = ({
 
   const handleDelete = () => {
     const itemIdentifier = item.type === 'word' ? item.text : item.title;
-    const confirmMessage = `您确定要删除这个${item.type === 'word' ? '单词' : '知识点'}：“${itemIdentifier}”吗？此项目将被移至“最近删除”，可在24小时内恢复。`;
+    const confirmMessage = `您确定要删除这个${item.type === 'word' ? '单词' : '知识点'}："${itemIdentifier}"吗？此项目将被移至"最近删除"，可在24小时内恢复。`;
     if (window.confirm(confirmMessage)) {
       onDeleteItem?.(item.id, item.type);
     }
@@ -98,6 +97,9 @@ export const StudyItemCard: React.FC<StudyItemCardProps> = ({
   const knowledgePointSpecificDetails = item.type === 'knowledge' ? (
     <>
       <p className="text-sm text-gray-600 whitespace-pre-wrap break-words"><strong className="font-medium text-gray-700">内容:</strong> {item.content}</p>
+      {item.imageName && (
+        <p className="text-sm text-gray-600"><strong className="font-medium text-gray-700">附件:</strong> {item.imageName}</p>
+      )}
       <p className="text-sm text-gray-500 mt-1"><strong className="font-medium text-gray-700">分类:</strong> {syllabusPath}</p>
     </>
   ) : null;
