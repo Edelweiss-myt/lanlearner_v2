@@ -97,8 +97,11 @@ export const StudyItemCard: React.FC<StudyItemCardProps> = ({
   const knowledgePointSpecificDetails = item.type === 'knowledge' ? (
     <>
       <p className="text-sm text-gray-600 whitespace-pre-wrap break-words"><strong className="font-medium text-gray-700">内容:</strong> {item.content}</p>
-      {item.imageName && (
-        <p className="text-sm text-gray-600"><strong className="font-medium text-gray-700">附件:</strong> {item.imageName}</p>
+      {item.imageUrl && (
+        <div className="mt-2">
+          {item.imageName && <p className="text-sm text-gray-500 mb-1">附件: {item.imageName}</p>}
+          <img src={item.imageUrl} alt={item.imageName || 'Knowledge Point Image'} className="max-w-full h-auto rounded-lg border" />
+        </div>
       )}
       <p className="text-sm text-gray-500 mt-1"><strong className="font-medium text-gray-700">分类:</strong> {syllabusPath}</p>
     </>

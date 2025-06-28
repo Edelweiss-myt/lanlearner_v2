@@ -201,13 +201,10 @@ export const generateNotionBlocksForSyllabusStructure = (
             blocks.push(toggleBlock);
         }
 
-        if (kp.notes) {
-          const noteLines = kp.notes.split('\n').filter(line => line.trim() !== '');
-          if (noteLines.length > 0) {
-            noteLines.forEach(line => {
-                blocks.push(createNotionQuoteBlock([{ type: 'text', text: { content: line } }]));
-            });
-          }
+        if (kp.notes && kp.notes.trim() !== '') {
+          blocks.push(createNotionQuoteBlock([
+            { type: 'text', text: { content: kp.notes } }
+          ]));
         }
       });
       
