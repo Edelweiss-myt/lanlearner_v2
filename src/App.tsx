@@ -63,6 +63,7 @@ const App: React.FC = () => {
   const [isExportingToNotion, setIsExportingToNotion] = useState(false);
   const [notionExportMessage, setNotionExportMessage] = useState<string | null>(null);
   const [isNotionExportModalOpen, setIsNotionExportModalOpen] = useState(false);
+  const [selectedMainSyllabusId, setSelectedMainSyllabusId] = useState<string | null>(SYLLABUS_ROOT_ID);
 
   const primaryNewKnowledgeSubjectCategory = useMemo(() =>
     newKnowledgeSyllabus.find(s => s.id === primaryNewKnowledgeSubjectCategoryId && s.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID),
@@ -1048,7 +1049,9 @@ const App: React.FC = () => {
               onDeleteEbook={handleDeleteEbook}
               isNewSubjectContext={false}
               currentSubjectRootId={SYLLABUS_ROOT_ID}
-              currentSubjectName="主大纲（知识点）"
+              currentSubjectName="所有主题"
+              selectedSyllabusId={selectedMainSyllabusId}
+              onSelectSyllabusId={setSelectedMainSyllabusId}
             />
           )}
           {activeTab === ActiveTab.BuildNewSystem && (
