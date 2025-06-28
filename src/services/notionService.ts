@@ -184,10 +184,19 @@ export const generateNotionBlocksForSyllabusStructure = (
 
         if (kp.imageUrl) {
             const imageNameText = kp.imageName || 'Image';
-            const imageBlock = createNotionImageBlock(kp.imageUrl);
+            let imageContentBlock: NotionBlock;
+
+            if (kp.imageUrl.startsWith('data:')) {
+                imageContentBlock = createNotionParagraphBlock([
+                    { type: 'text', text: { content: '[图片无法自动上传，请手动添加]' } }
+                ]);
+            } else {
+                imageContentBlock = createNotionImageBlock(kp.imageUrl);
+            }
+            
             const toggleBlock = createNotionToggleBlock(
                 [{ type: 'text', text: { content: imageNameText } }],
-                [imageBlock]
+                [imageContentBlock]
             );
             blocks.push(toggleBlock);
         }
