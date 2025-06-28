@@ -13,7 +13,7 @@ export interface ImportResult {
 }
 
 const WORD_HEADERS = { TEXT: '单词', DEFINITION: '释义', PART_OF_SPEECH: '词性', EXAMPLE: '例句', NOTES: '备注', CREATED_AT: '创建日期', LAST_REVIEWED_AT: '上次复习', NEXT_REVIEW_AT: '下次复习', SRS_STAGE: '复习阶段' };
-const KP_HEADERS = { TITLE: '标题', CONTENT: '内容', CATEGORY: '分类', NOTES: '备注', CREATED_AT: '创建日期', LAST_REVIEWED_AT: '上次复习', NEXT_REVIEW_AT: '下次复习', SRS_STAGE: '复习阶段' };
+const KP_HEADERS = { TITLE: '标题', CONTENT: '内容', IMAGE_URL: '图片', IMAGE_NAME: '图片名', CATEGORY: '分类', NOTES: '备注', CREATED_AT: '创建日期', LAST_REVIEWED_AT: '上次复习', NEXT_REVIEW_AT: '下次复习', SRS_STAGE: '复习阶段' };
 
 const SYLLABUS_HEADERS = {
   CATEGORY: '分类',
@@ -99,6 +99,8 @@ export const importDataFromExcel = async (
         content: row[KP_HEADERS.CONTENT].toString().trim(),
         syllabusItemId,
         notes: row[KP_HEADERS.NOTES]?.toString().trim() || undefined,
+        imageUrl: row[KP_HEADERS.IMAGE_URL]?.toString().trim() || undefined,
+        imageName: row[KP_HEADERS.IMAGE_NAME]?.toString().trim() || undefined,
         subjectId: undefined,
         createdAt: createdAt || new Date().toISOString(),
         lastReviewedAt: lastReviewed,

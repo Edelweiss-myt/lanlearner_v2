@@ -66,8 +66,9 @@ export const exportDataToExcel = (
     const mainKpData = mainKnowledgePoints.map(kp => ({
       '标题': kp.title,
       '内容': kp.content,
+      '图片': kp.imageUrl || '',
+      '图片名': kp.imageName || '',
       '分类': getSyllabusPath(kp.syllabusItemId, mainSyllabusItems, SYLLABUS_ROOT_ID),
-      '图片名称': kp.imageName || '',
       '备注': kp.notes || '',
       '创建日期': formatNullableDate(kp.createdAt),
       '上次复习': formatNullableDate(kp.lastReviewedAt),
@@ -84,8 +85,9 @@ export const exportDataToExcel = (
         const subjectKpData = subjectData.kps.map(kp => ({
           '标题': kp.title,
           '内容': kp.content,
+          '图片': kp.imageUrl || '',
+          '图片名': kp.imageName || '',
           '分类': getSyllabusPath(kp.syllabusItemId, allNewKnowledgeSyllabusItems, NEW_KNOWLEDGE_SYLLABUS_ROOT_ID),
-          '图片名称': kp.imageName || '',
           '备注': kp.notes || '',
           '创建日期': formatNullableDate(kp.createdAt),
           '上次复习': formatNullableDate(kp.lastReviewedAt),
