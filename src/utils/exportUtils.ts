@@ -133,7 +133,7 @@ export const exportDataToExcel = (
 
   const today = new Date();
   const dateString = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
-  const filename = `Lanlearner_学习数据_${dateString}.xlsx`;
+  const filename = `Lanlearner_data_export_${dateString}.xlsx`;
   
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
   const data = new Blob([excelBuffer], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8'});
