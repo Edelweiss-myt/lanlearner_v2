@@ -12,6 +12,7 @@ interface SyllabusManagerProps {
   onAddItem: (item: Omit<SyllabusItem, 'id'>) => void;
   onUpdateItem: (item: SyllabusItem) => void;
   onDeleteItem: (id: string) => void;
+  onDeleteItemAndKnowledgePoints?: (id: string) => void;
   onDeleteKnowledgePoint?: (id: string, type: 'word' | 'knowledge') => void;
   onMoveKnowledgePointCategory?: (itemId: string, newSyllabusId: string | null) => void;
   onEditItem?: (item: LearningItem) => void;
@@ -48,6 +49,7 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
     onAddItem,
     onUpdateItem,
     onDeleteItem,
+    onDeleteItemAndKnowledgePoints,
     onDeleteKnowledgePoint,
     onMoveKnowledgePointCategory,
     onEditItem,
@@ -69,6 +71,8 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<EditableSyllabusItem | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<SyllabusItem | null>(null);
   const [collapsedItems, setCollapsedItems] = useState<Set<string>>(() => {
     if (isNewSubjectContext) {
       // For the "New Knowledge" view, initialize all categories with children to be collapsed.
@@ -126,14 +130,49 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
     }
   };
   
-  const handleDeleteSyllabusItem = (id: string) => {
-    const itemToDelete = syllabusItems.find(s=>s.id === id);
-    const confirmMessage = `您确定要删除此分类 "${itemToDelete?.title || '未知'}" 及其所有子分类吗？相关的知识点将变为未分类。此操作不可逆。`;
-    if (window.confirm(confirmMessage)) {
-      onDeleteItem(id);
-      if(selectedSyllabusId === id) onSelectSyllabusId(currentSubjectRootId);
-      closeModal();
+  const openDeleteConfirmModal = (id: string) => {
+    const item = syllabusItems.find(s => s.id === id);
+    if (item) {
+        setItemToDelete(item);
+        setIsDeleteConfirmOpen(true);
     }
+  };
+
+  const closeDeleteConfirmModal = () => {
+    setIsDeleteConfirmOpen(false);
+    setItemToDelete(null);
+  };
+
+  const handleDeleteSyllabusItem = (id: string) => {
+    const itemToDeleteFromState = syllabusItems.find(s=>s.id === id);
+    if (!itemToDeleteFromState) return;
+
+    if (isNewSubjectContext && onDeleteItemAndKnowledgePoints) {
+        // This logic is now handled by the modal
+        openDeleteConfirmModal(id);
+    } else {
+        const confirmMessage = `您确定要删除此分类 "${itemToDeleteFromState.title}" 及其所有子分类吗？相关的知识点将变为未分类。此操作不可逆。`;
+        if (window.confirm(confirmMessage)) {
+          onDeleteItem(id);
+          if(selectedSyllabusId === id) onSelectSyllabusId(currentSubjectRootId);
+          closeModal(); // closeModal is for the edit modal, which is fine to call here.
+        }
+    }
+  };
+
+  const confirmDeletion = (deleteKps: boolean) => {
+    if (!itemToDelete) return;
+
+    if (deleteKps && onDeleteItemAndKnowledgePoints) {
+        onDeleteItemAndKnowledgePoints(itemToDelete.id);
+    } else {
+        onDeleteItem(itemToDelete.id);
+    }
+    
+    if(selectedSyllabusId === itemToDelete.id) {
+        onSelectSyllabusId(currentSubjectRootId);
+    }
+    closeDeleteConfirmModal();
   };
 
   const toggleCollapse = (itemId: string) => {
@@ -217,6 +256,13 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
                       计划
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => openDeleteConfirmModal(item.id)}
+                    aria-label={`删除分类 ${item.title}`}
+                    className="text-red-600 hover:text-red-800 text-[10px] leading-tight"
+                  >删除</Button>
                   {item.id !== currentSubjectRootId && ( // Edit button
                     <Button
                       size="sm"
@@ -451,6 +497,31 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
           </div>
         </div>
       </Modal>
+
+      {isDeleteConfirmOpen && itemToDelete && (
+        <Modal
+            isOpen={isDeleteConfirmOpen}
+            onClose={closeDeleteConfirmModal}
+            title={`删除分类: "${itemToDelete.title}"`}
+        >
+            <div className="p-4">
+                <p className="text-gray-700 mb-4">
+                    请选择如何处理此分类及其内部的知识点：
+                </p>
+                <div className="flex flex-col space-y-3">
+                    <Button onClick={() => confirmDeletion(false)} variant="secondary">
+                        仅删除分类
+                    </Button>
+                    <Button onClick={() => confirmDeletion(true)} variant="danger">
+                        删除分类和所有知识点
+                    </Button>
+                    <Button onClick={closeDeleteConfirmModal} variant="ghost">
+                        取消
+                    </Button>
+                </div>
+            </div>
+        </Modal>
+      )}
     </div>
   );
 };

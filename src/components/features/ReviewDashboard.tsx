@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { WordItem, KnowledgePointItem, LearningItem, SyllabusItem, Ebook } from '../../types'; // Removed NewSubject
 import { StudyItemCard } from '../display/StudyItemCard';
@@ -10,8 +9,6 @@ import { findExampleInEbook } from '../../utils/ebookUtils';
 interface ReviewDashboardProps {
   words: WordItem[];
   mainKnowledgePoints: KnowledgePointItem[];
-  newKnowledgeSyllabus: SyllabusItem[]; // Unified new knowledge syllabus
-  newKnowledgeKnowledgePoints: KnowledgePointItem[]; // KPs from the new knowledge system
   onUpdateItem: (item: WordItem | KnowledgePointItem) => void;
   onDeleteItem: (id: string, type: 'word' | 'knowledge') => void;
   onReviewSessionCompleted: () => void;
@@ -22,13 +19,11 @@ interface ReviewDashboardProps {
   selectedEbookForLookupId: string | null;
 }
 
-type FilterType = 'all' | 'word' | 'main_knowledge' | 'new_subject_knowledge';
+type FilterType = 'all' | 'word' | 'main_knowledge';
 
 export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
     words,
     mainKnowledgePoints,
-    newKnowledgeSyllabus,
-    newKnowledgeKnowledgePoints,
     onUpdateItem,
     onDeleteItem,
     onReviewSessionCompleted,
@@ -39,7 +34,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
     selectedEbookForLookupId
 }) => {
   
-  const allItems: LearningItem[] = useMemo(() => [...words, ...mainKnowledgePoints, ...newKnowledgeKnowledgePoints], [words, mainKnowledgePoints, newKnowledgeKnowledgePoints]);
+  const allItems: LearningItem[] = useMemo(() => [...words, ...mainKnowledgePoints], [words, mainKnowledgePoints]);
   
   const [showAll, setShowAll] = useState(false);
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -53,24 +48,14 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
             if (item.type === 'word') {
                 uniqueDueItems.set(item.id, item);
             } else {
-                const kp = item as KnowledgePointItem;
-                const masterId = kp.masterId || kp.id;
-                if (!uniqueDueItems.has(masterId)) {
-                    uniqueDueItems.set(masterId, item);
-                } else {
-                    const existing = uniqueDueItems.get(masterId) as KnowledgePointItem;
-                    if(mainKnowledgePoints.some(mkp => (mkp.masterId || mkp.id) === masterId && mkp.id === kp.id)) { // Check masterId for main KPs too
-                        uniqueDueItems.set(masterId, kp);
-                    } else if (new Date(kp.lastReviewedAt || kp.createdAt) > new Date(existing.lastReviewedAt || existing.createdAt)) {
-                        uniqueDueItems.set(masterId, kp);
-                    }
-                }
+                // For main knowledge points, the logic is simpler as there are no duplicates to handle across systems.
+                uniqueDueItems.set(item.id, item);
             }
         }
     });
     return Array.from(uniqueDueItems.values())
                  .sort((a, b) => new Date(a.nextReviewAt!).getTime() - new Date(b.nextReviewAt!).getTime());
-  }, [allItems, mainKnowledgePoints]);
+  }, [allItems]);
 
 
   const prevItemsDueCountRef = useRef(itemsDueForReview.length);
@@ -91,12 +76,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
              if (item.type === 'word') {
                  uniqueUpcomingItems.set(item.id, item);
              } else {
-                 const kp = item as KnowledgePointItem;
-                 const masterId = kp.masterId || kp.id;
-                 if (!uniqueUpcomingItems.has(masterId) ||
-                     (new Date(kp.lastReviewedAt || kp.createdAt) > new Date(uniqueUpcomingItems.get(masterId)!.lastReviewedAt || uniqueUpcomingItems.get(masterId)!.createdAt))) {
-                     uniqueUpcomingItems.set(masterId, item);
-                 }
+                uniqueUpcomingItems.set(item.id, item);
              }
          }
      });
@@ -146,25 +126,22 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
         }
       } else if (filterType === 'main_knowledge') {
         itemsToDisplay = mainKnowledgePoints;
-      } else if (filterType === 'new_subject_knowledge') {
-        itemsToDisplay = newKnowledgeKnowledgePoints;
       } else { // 'all'
         itemsToDisplay = allItems;
       }
       return itemsToDisplay.sort((a,b) => (a.createdAt && b.createdAt) ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() : (a.createdAt ? -1 : 1));
     }
     return itemsDueForReview;
-  }, [allItems, itemsDueForReview, showAll, filterType, searchTerm, mainKnowledgePoints, newKnowledgeKnowledgePoints]);
+  }, [allItems, itemsDueForReview, showAll, filterType, searchTerm, mainKnowledgePoints]);
   
   const getSyllabusForKpDisplay = (kp: KnowledgePointItem): SyllabusItem[] => {
-      if (kp.subjectId && newKnowledgeSyllabus.some(s => s.id === kp.subjectId && s.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID)) {
-          return newKnowledgeSyllabus;
-      }
+      // Since this dashboard only handles main syllabus KPs, always return mainSyllabus.
       return mainSyllabus;
   };
   
   const isKpInNewKnowledgeContextForDisplay = (kp: KnowledgePointItem): boolean => {
-      return kp.subjectId !== undefined && newKnowledgeKnowledgePoints.some(nkkp => nkkp.id === kp.id);
+      // This dashboard does not handle new knowledge context items.
+      return false;
   };
 
 
@@ -174,7 +151,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
         <h3 className="text-xl font-semibold text-gray-700">
           {showAll ? "所有项目" : "今日复习"}
           {!showAll && ` (${itemsDueForReview.length})`}
-          {showAll && ` (${displayedItems.length}${filterType !== 'all' ? ` ${filterType === 'word' ? '单词' : (filterType === 'main_knowledge' ? '主大纲知识点' : '新知识体系知识点')}` : ''} / ${allItems.length} 总计)`}
+          {showAll && ` (${displayedItems.length}${filterType !== 'all' ? ` ${filterType === 'word' ? '单词' : '主大纲知识点'}` : ''} / ${allItems.length} 总计)`}
         </h3>
          <Button
             onClick={() => {
@@ -220,15 +197,6 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
               className="mb-1"
             >
               主大纲知识点 ({mainKnowledgePoints.length})
-            </Button>
-            <Button
-              variant={filterType === 'new_subject_knowledge' ? 'primary' : 'ghost'}
-              onClick={() => { setFilterType('new_subject_knowledge'); setSearchTerm(''); }}
-              size="sm"
-              aria-pressed={filterType === 'new_subject_knowledge'}
-              className="mb-1"
-            >
-              新知识体系知识点 ({newKnowledgeKnowledgePoints.length})
             </Button>
           </div>
           {filterType === 'word' && (
@@ -289,7 +257,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
         </div>
       ) : (
         <p className="text-gray-600">
-            {showAll ? (filterType === 'all' ? "尚未添加任何项目。开始学习新内容吧！" : `沒有符合当前筛选条件的${filterType === 'word' ? (searchTerm ? '搜索结果' : '单词') : (filterType === 'main_knowledge' ? '主大纲知识点' : '新知识体系知识点')}。`) : "目前没有到期的复习项。太棒了！🎉"}
+            {showAll ? (filterType === 'all' ? "尚未添加任何项目。开始学习新内容吧！" : "目前没有到期的复习项。太棒了！🎉") : "目前没有到期的复习项。太棒了！🎉"}
         </p>
       )}
       

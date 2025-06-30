@@ -18,6 +18,7 @@ interface NewKnowledgeArchitectureTabProps {
   onAddSyllabusItem: (item: Omit<SyllabusItem, 'id'>) => void;
   onUpdateSyllabusItem: (item: SyllabusItem) => void;
   onDeleteSyllabusItem: (id: string) => void;
+  onDeleteSyllabusItemAndKnowledgePoints: (id: string) => void;
   onAddKnowledgePoint: (kp: Omit<KnowledgePointItem, 'id' | 'createdAt' | 'lastReviewedAt' | 'nextReviewAt' | 'srsStage' | 'type' | 'masterId' | 'subjectId'>) => void;
   onDeleteKnowledgePoint: (id: string, type: 'knowledge') => void;
   onMoveKnowledgePointCategory: (itemId: string, newSyllabusId: string | null) => void;
@@ -39,6 +40,7 @@ export const NewKnowledgeArchitectureTab: React.FC<NewKnowledgeArchitectureTabPr
   onAddSyllabusItem,
   onUpdateSyllabusItem,
   onDeleteSyllabusItem,
+  onDeleteSyllabusItemAndKnowledgePoints,
   onAddKnowledgePoint,
   onDeleteKnowledgePoint,
   onMoveKnowledgePointCategory,
@@ -162,6 +164,7 @@ export const NewKnowledgeArchitectureTab: React.FC<NewKnowledgeArchitectureTabPr
             onAddItem={onAddSyllabusItem}
             onUpdateItem={onUpdateSyllabusItem}
             onDeleteItem={onDeleteSyllabusItem}
+            onDeleteItemAndKnowledgePoints={onDeleteSyllabusItemAndKnowledgePoints}
             onDeleteKnowledgePoint={(id, type) => onDeleteKnowledgePoint(id, type as 'knowledge')}
             onMoveKnowledgePointCategory={onMoveKnowledgePointCategory}
             onEditItem={(item) => onEditKnowledgePoint(item as KnowledgePointItem)}

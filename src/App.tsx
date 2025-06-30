@@ -386,6 +386,16 @@ const App: React.FC = () => {
     persistWords([...words, newWord]);
   }, [words, persistWords]);
 
+  const getChildrenRecursive = (parentId: string, syllabus: SyllabusItem[]): string[] => {
+    const children = syllabus.filter(item => item.parentId === parentId);
+    if (children.length === 0) {
+      return [];
+    }
+    return children.reduce((acc, child) => {
+      return [...acc, child.id, ...getChildrenRecursive(child.id, syllabus)];
+    }, [] as string[]);
+  };
+
   const addKnowledgePoint = useCallback((kp: Omit<KnowledgePointItem, 'id' | 'createdAt' | 'lastReviewedAt' | 'nextReviewAt' | 'srsStage' | 'type' | 'masterId' | 'subjectId'>, isNewKnowledgeContext: boolean = false) => {
     const newKpId = generateId();
     let topLevelSubjectCatId: string | undefined = undefined;
@@ -465,7 +475,7 @@ const App: React.FC = () => {
     setEditingKnowledgePoint(null);
   };
   
-  const deleteStudyItem = useCallback((itemId: string, itemType: 'word' | 'knowledge') => {
+  const deleteStudyItem = useCallback((itemId: string, itemType: 'word' | 'knowledge', confirmed: boolean = false) => {
     let itemToDelete: LearningItem | undefined;
     let isFromNewKnowledgeContext = false;
 
@@ -486,7 +496,7 @@ const App: React.FC = () => {
 
     const confirmMessage = `您确定要删除这个${itemType === 'word' ? '单词' : '知识点'}："${itemIdentifier}"吗？此项目将被移至"最近删除"，可在24小时内恢复。`;
     
-    if (window.confirm(confirmMessage)) {
+    if (confirmed || window.confirm(confirmMessage)) {
         if (itemType === 'word') {
           if (itemToDelete) persistWords(words.filter(w => w.id !== itemId));
         } else {
@@ -523,12 +533,28 @@ const App: React.FC = () => {
     if (item.type === 'word') {
       persistWords([...words, item as WordItem]);
     } else {
-      // Check if it originally belonged to newKnowledge system
-      if (kpItem.subjectId && newKnowledgeSyllabus.some(s => s.id === kpItem.subjectId && s.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID)) {
+      // A KP belongs to the "New Knowledge" system if it has a subjectId,
+      // even if that subject category has since been deleted.
+      if (kpItem.subjectId !== undefined && kpItem.subjectId !== null) {
+        
+        // Check if its subject category still exists.
+        const subjectExists = newKnowledgeSyllabus.some(s => s.id === kpItem.subjectId);
+        if (!subjectExists) {
+          // The subject is gone, so this KP is now homeless. Clear its subjectId.
+          kpItem.subjectId = undefined;
+        }
+
+        // Check if its direct syllabus category still exists.
+        const categoryExists = kpItem.syllabusItemId && newKnowledgeSyllabus.some(s => s.id === kpItem.syllabusItemId);
+        if (!categoryExists) {
+          // The category is gone, restore as uncategorized within the new knowledge system.
+          kpItem.syllabusItemId = null;
+        }
+
         if (!newKnowledgeKnowledgePoints.some(k => k.id === kpItem.id)) {
             persistNewKnowledgeKnowledgePoints([...newKnowledgeKnowledgePoints, kpItem]);
         }
-      } else { // Assume it belongs to main syllabus
+      } else { // It's a main syllabus KP.
         if (!knowledgePoints.some(k => k.id === kpItem.id)) {
           persistKnowledgePoints([...knowledgePoints, kpItem]);
         }
@@ -580,46 +606,57 @@ const App: React.FC = () => {
     }
   }, [syllabus, persistSyllabus, newKnowledgeSyllabus, persistNewKnowledgeSyllabus]);
 
-  const deleteSyllabusItem = useCallback((itemId: string, isNewKnowledgeContext: boolean = false) => {
+  const deleteSyllabusItemAndKps = useCallback((itemId: string) => {
+    const descendants = getChildrenRecursive(itemId, newKnowledgeSyllabus);
+    const allIdsToDelete = [itemId, ...descendants];
     
-    const currentSyllabusList = isNewKnowledgeContext ? newKnowledgeSyllabus : syllabus;
-    const persistCurrentSyllabus = isNewKnowledgeContext ? persistNewKnowledgeSyllabus : persistSyllabus;
+    const kpsToDelete = newKnowledgeKnowledgePoints.filter(kp => kp.syllabusItemId && allIdsToDelete.includes(kp.syllabusItemId));
+    
+    // Use the existing deleteStudyItem function to handle each KP deletion.
+    // This ensures they are properly added to the "recently deleted" list.
+    kpsToDelete.forEach(kp => deleteStudyItem(kp.id, 'knowledge', true));
+
+    // Now, just delete the syllabus categories.
+    const syllabusToKeep = newKnowledgeSyllabus.filter(s => !allIdsToDelete.includes(s.id));
+    persistNewKnowledgeSyllabus(syllabusToKeep);
+    
+    // If a current learning plan category is deleted, reset the plan.
+    if (currentLearningPlan && allIdsToDelete.includes(currentLearningPlan.categoryId)) {
+      handleSetCurrentLearningPlan(null);
+    }
+  }, [newKnowledgeSyllabus, newKnowledgeKnowledgePoints, persistNewKnowledgeSyllabus, currentLearningPlan, handleSetCurrentLearningPlan, getChildrenRecursive, deleteStudyItem]);
+
+
+  const deleteSyllabusItem = useCallback((itemId: string, isNewKnowledgeContext: boolean = false) => {
+    const targetSyllabus = isNewKnowledgeContext ? newKnowledgeSyllabus : syllabus;
+    const persistTargetSyllabus = isNewKnowledgeContext ? persistNewKnowledgeSyllabus : persistSyllabus;
     
     const kpsToUpdateList = isNewKnowledgeContext ? newKnowledgeKnowledgePoints : knowledgePoints;
     const persistKpsToUpdate = isNewKnowledgeContext ? persistNewKnowledgeKnowledgePoints : persistKnowledgePoints;
-
-
-    const getChildrenRecursive = (parentId: string, currentSyllabus: SyllabusItem[]): string[] => {
-        let ids: string[] = [];
-        const children = currentSyllabus.filter(s => s.parentId === parentId);
-        for (const child of children) {
-            ids.push(child.id);
-            ids = ids.concat(getChildrenRecursive(child.id, currentSyllabus));
-        }
-        return ids;
-    };
-
-    const idsToDelete = [itemId, ...getChildrenRecursive(itemId, currentSyllabusList)];
     
+    const descendants = getChildrenRecursive(itemId, targetSyllabus);
+    const allIdsToDelete = [itemId, ...descendants];
+
     const updatedKps = kpsToUpdateList.map(kp => {
-        if (kp.syllabusItemId && idsToDelete.includes(kp.syllabusItemId)) {
+        if (kp.syllabusItemId && allIdsToDelete.includes(kp.syllabusItemId)) {
+            // For new knowledge KPs, also clear subjectId as they become "homeless"
             return { ...kp, syllabusItemId: null, subjectId: isNewKnowledgeContext ? undefined : kp.subjectId };
         }
         return kp;
     });
-    const updatedSyllabus = currentSyllabusList.filter(s => !idsToDelete.includes(s.id));
+
+    const updatedSyllabus = targetSyllabus.filter(s => !allIdsToDelete.includes(s.id));
     
-    persistCurrentSyllabus(updatedSyllabus);
+    persistTargetSyllabus(updatedSyllabus);
     persistKpsToUpdate(updatedKps);
 
-    if (isNewKnowledgeContext && primaryNewKnowledgeSubjectCategoryId && idsToDelete.includes(primaryNewKnowledgeSubjectCategoryId)) {
-        persistPrimaryNewKnowledgeSubjectCategoryId(null);
+    if (isNewKnowledgeContext && primaryNewKnowledgeSubjectCategoryId && allIdsToDelete.includes(primaryNewKnowledgeSubjectCategoryId)) {
+        setPrimaryNewKnowledgeSubjectCategoryId(null);
     }
-    if (currentLearningPlan && idsToDelete.includes(currentLearningPlan.categoryId)) {
+    if (currentLearningPlan && allIdsToDelete.includes(currentLearningPlan.categoryId)) {
         handleSetCurrentLearningPlan(null);
     }
-    
-  }, [syllabus, persistSyllabus, knowledgePoints, persistKnowledgePoints, newKnowledgeSyllabus, persistNewKnowledgeSyllabus, newKnowledgeKnowledgePoints, persistNewKnowledgeKnowledgePoints, primaryNewKnowledgeSubjectCategoryId, persistPrimaryNewKnowledgeSubjectCategoryId, currentLearningPlan, handleSetCurrentLearningPlan]);
+  }, [syllabus, persistSyllabus, knowledgePoints, persistKnowledgePoints, newKnowledgeSyllabus, persistNewKnowledgeSyllabus, newKnowledgeKnowledgePoints, persistNewKnowledgeKnowledgePoints, primaryNewKnowledgeSubjectCategoryId, setPrimaryNewKnowledgeSubjectCategoryId, currentLearningPlan, handleSetCurrentLearningPlan, getChildrenRecursive]);
 
 
   const graduateNewSubjectCategoriesToMainSyllabus = useCallback(() => {
@@ -973,10 +1010,10 @@ const App: React.FC = () => {
   }, []);
 
   const handleEditItem = (item: LearningItem) => {
-      if (item.type === 'knowledge') {
-        openEditKpModal(item as KnowledgePointItem);
-      } else if (item.type === 'word') {
+      if (item.type === 'word') {
         openEditWordModal(item as WordItem);
+      } else {
+        openEditKpModal(item as KnowledgePointItem);
       }
     };
 
@@ -1024,14 +1061,11 @@ const App: React.FC = () => {
             <ReviewDashboard
               words={words}
               mainKnowledgePoints={knowledgePoints}
-              newKnowledgeSyllabus={newKnowledgeSyllabus}
-              newKnowledgeKnowledgePoints={newKnowledgeKnowledgePoints}
               onUpdateItem={updateStudyItem}
               onDeleteItem={deleteStudyItem}
               onReviewSessionCompleted={handleReviewSessionCompleted}
-              key={itemsDueForReview.length}
               mainSyllabus={syllabus}
-              onMoveKnowledgePointCategory={handleMoveKnowledgePointCategory}
+              onMoveKnowledgePointCategory={(id, newId) => handleMoveKnowledgePointCategory(id, newId, false)}
               onEditItem={handleEditItem}
               ebooks={ebooks}
               selectedEbookForLookupId={selectedEbookForLookupId}
@@ -1073,11 +1107,12 @@ const App: React.FC = () => {
               onAddKnowledgePoint={(kp) => addKnowledgePoint(kp, true)}
               onDeleteKnowledgePoint={deleteStudyItem}
               onMoveKnowledgePointCategory={(itemId, newSyllabusId) => handleMoveKnowledgePointCategory(itemId, newSyllabusId, true)}
-              onEditKnowledgePoint={(item) => handleEditItem(item)}
+              onEditKnowledgePoint={handleEditItem}
               onGraduateCategories={graduateNewSubjectCategoriesToMainSyllabus}
               onMarkCategoryAsLearned={handleMarkCategoryAsLearned}
               onMarkCategoryAsUnlearned={handleMarkCategoryAsUnlearned}
               onSyncSingleKnowledgePointToMain={syncSingleNewKnowledgeKpToMainSyllabus}
+              onDeleteSyllabusItemAndKnowledgePoints={deleteSyllabusItemAndKps}
             />
           )}
         </div>
