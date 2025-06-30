@@ -134,7 +134,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
     return itemsDueForReview;
   }, [allItems, itemsDueForReview, showAll, filterType, searchTerm, mainKnowledgePoints]);
   
-  const getSyllabusForKpDisplay = (kp: KnowledgePointItem): SyllabusItem[] => {
+  const getSyllabusForKpDisplay = (_kp: KnowledgePointItem): SyllabusItem[] => {
       // Since this dashboard only handles main syllabus KPs, always return mainSyllabus.
       return mainSyllabus;
   };

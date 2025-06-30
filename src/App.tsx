@@ -70,26 +70,13 @@ const App: React.FC = () => {
   [newKnowledgeSyllabus, primaryNewKnowledgeSubjectCategoryId]);
 
 
-  const itemsDueForReview = useMemo(() => {
-    const today = getTodayDateString();
-    
-    // Consolidate KPs, preferring the main list version if a masterId match exists (due to sync no longer happening)
-    const consolidatedKPsMap = new Map<string, KnowledgePointItem>();
-
-    newKnowledgeKnowledgePoints.forEach(nkKp => {
-        consolidatedKPsMap.set(nkKp.masterId || nkKp.id, nkKp); // Add new knowledge KPs first
-    });
-    knowledgePoints.forEach(mainKp => {
-        consolidatedKPsMap.set(mainKp.masterId || mainKp.id, mainKp); // Main KPs overwrite if masterId matches (or add if unique)
-    });
-    
-    const allUniqueKPs = Array.from(consolidatedKPsMap.values());
-
-    return [...words, ...allUniqueKPs]
-      .filter(item => item.nextReviewAt && new Date(item.nextReviewAt).toISOString().split('T')[0] <= today)
-      .sort((a, b) => new Date(a.nextReviewAt!).getTime() - new Date(b.nextReviewAt!).getTime());
-  }, [words, knowledgePoints, newKnowledgeKnowledgePoints]);
-
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  useEffect(() => {
+    // This effect runs once on mount to check the user's system preference
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    setIsDarkMode(mediaQuery.matches);
+  }, []);
 
   useEffect(() => {
     const loadData = () => {
