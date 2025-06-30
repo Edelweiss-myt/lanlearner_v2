@@ -70,12 +70,23 @@ const App: React.FC = () => {
   [newKnowledgeSyllabus, primaryNewKnowledgeSubjectCategoryId]);
 
 
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  
   useEffect(() => {
-    // This effect runs once on mount to check the user's system preference
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    setIsDarkMode(mediaQuery.matches);
+    
+    const applyDarkMode = (matches: boolean) => {
+        if (matches) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    };
+    
+    applyDarkMode(mediaQuery.matches);
+    
+    const handler = (e: MediaQueryListEvent) => applyDarkMode(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    
+    return () => mediaQuery.removeEventListener('change', handler);
   }, []);
 
   useEffect(() => {

@@ -139,7 +139,7 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
       return mainSyllabus;
   };
   
-  const isKpInNewKnowledgeContextForDisplay = (kp: KnowledgePointItem): boolean => {
+  const isKpInNewKnowledgeContextForDisplay = (_kp: KnowledgePointItem): boolean => {
       // This dashboard does not handle new knowledge context items.
       return false;
   };
