@@ -620,6 +620,35 @@ const App: React.FC = () => {
     }
   }, [syllabus, persistSyllabus, newKnowledgeSyllabus, persistNewKnowledgeSyllabus]);
 
+  const deleteSyllabusItemAndKps = useCallback((itemId: string) => {
+    const descendants = getChildrenRecursive(itemId, newKnowledgeSyllabus);
+    const allIdsToDelete = [itemId, ...descendants];
+  
+    // First, process KPs to delete and add them to recently deleted
+    const updatedNewKnowledgeKnowledgePoints = newKnowledgeKnowledgePoints.filter(kp => {
+        const shouldDelete = kp.syllabusItemId && allIdsToDelete.includes(kp.syllabusItemId);
+        if (shouldDelete) {
+            const newRecentlyDeletedItem: RecentlyDeletedItem = {
+                item: kp,
+                deletedAt: new Date().toISOString(),
+            };
+            persistRecentlyDeletedItems(newRecentlyDeletedItem);
+        }
+        return !shouldDelete;
+    });
+  
+    persistNewKnowledgeKnowledgePoints(updatedNewKnowledgeKnowledgePoints);
+  
+    // Now, just delete the syllabus categories.
+    const syllabusToKeep = newKnowledgeSyllabus.filter(s => !allIdsToDelete.includes(s.id));
+    persistNewKnowledgeSyllabus(syllabusToKeep);
+  
+    // If a current learning plan category is deleted, reset the plan.
+    if (currentLearningPlan && allIdsToDelete.includes(currentLearningPlan.categoryId)) {
+      handleSetCurrentLearningPlan(null);
+    }
+  }, [newKnowledgeSyllabus, newKnowledgeKnowledgePoints, persistNewKnowledgeSyllabus, currentLearningPlan, handleSetCurrentLearningPlan, getChildrenRecursive, persistRecentlyDeletedItems]);
+
   const deleteSyllabusItem = useCallback((itemId: string, isNewKnowledgeContext: boolean = false) => {
     const targetSyllabus = isNewKnowledgeContext ? newKnowledgeSyllabus : syllabus;
     const persistTargetSyllabus = isNewKnowledgeContext ? persistNewKnowledgeSyllabus : persistSyllabus;
@@ -1106,7 +1135,7 @@ const App: React.FC = () => {
               onMarkCategoryAsLearned={handleMarkCategoryAsLearned}
               onMarkCategoryAsUnlearned={handleMarkCategoryAsUnlearned}
               onSyncSingleKnowledgePointToMain={syncSingleNewKnowledgeKpToMainSyllabus}
-              onDeleteSyllabusItemAndKnowledgePoints={deleteSyllabusItem}
+              onDeleteSyllabusItemAndKnowledgePoints={deleteSyllabusItemAndKps} 
             />
           )}
         </div>
