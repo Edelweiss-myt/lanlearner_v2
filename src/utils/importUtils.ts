@@ -252,7 +252,6 @@ export const importDataFromExcel = async (
         // Add existing new knowledge syllabus items to the map for merging purposes
         // Identify existing categories by title+parentId for matching across import/app data, but update by ID.
         existingNewKnowledgeSyllabus.forEach(item => {
-            const key = `${item.title.toLowerCase()}-${item.parentId || 'null'}`;
             if (!newKnowledgeSyllabusMap.has(item.id)) { // Prefer checking by ID first if available
                 newKnowledgeSyllabusMap.set(item.id, item); // Add by ID
             }
