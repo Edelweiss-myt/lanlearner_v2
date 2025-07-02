@@ -243,87 +243,85 @@ export const importDataFromExcel = async (
         // Step 2: Process '知识点 (主大纲)' sheet
         processKps(mainKnowledgePointsJsonData, false);
 
-        // Step 3: Process "新知识大纲" sheet to build consolidated syllabus structure
-        // This will be the primary source for the order of new knowledge syllabus items
-        let orderedNewKnowledgeSyllabus: SyllabusItem[] = [{ id: NEW_KNOWLEDGE_SYLLABUS_ROOT_ID, title: '新知识体系根目录', parentId: null }];
-        const newKnowledgeSyllabusMap = new Map<string, SyllabusItem>(); // Map for quick lookup and updates by path for syllabus
-        newKnowledgeSyllabusMap.set(NEW_KNOWLEDGE_SYLLABUS_ROOT_ID, orderedNewKnowledgeSyllabus[0]);
-        
-        // Add existing new knowledge syllabus items to the map for merging purposes
-        // Identify existing categories by title+parentId for matching across import/app data, but update by ID.
+        // Step 3: Process "新知识大纲" sheet to build consolidated syllabus structure prioritizing Excel order
+        const newKnowledgeSyllabusMap = new Map<string, SyllabusItem>(); // Map for quick lookup by ID
+        const pathLookupMap = new Map<string, string>(); // Map to store path (title-parentId) to ID
+        let newKnowledgeSyllabusOrder: SyllabusItem[] = []; // This will hold the final ordered syllabus
+
+        // Add existing new knowledge syllabus items to the map and pathLookupMap
         existingNewKnowledgeSyllabus.forEach(item => {
-            if (!newKnowledgeSyllabusMap.has(item.id)) { // Prefer checking by ID first if available
-                newKnowledgeSyllabusMap.set(item.id, item); // Add by ID
-            }
+            newKnowledgeSyllabusMap.set(item.id, item);
+            pathLookupMap.set(`${item.title.toLowerCase()}-${item.parentId || 'null'}`, item.id);
         });
 
+        // Ensure the root item is present and at the beginning of the order
+        const rootItem: SyllabusItem = newKnowledgeSyllabusMap.get(NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) ||
+                                     { id: NEW_KNOWLEDGE_SYLLABUS_ROOT_ID, title: '新知识体系根目录', parentId: null, isLearned: false };
+        if (!newKnowledgeSyllabusMap.has(NEW_KNOWLEDGE_SYLLABUS_ROOT_ID)) {
+            newKnowledgeSyllabusMap.set(NEW_KNOWLEDGE_SYLLABUS_ROOT_ID, rootItem);
+            // Do not add to newlyCreatedNewKnowledgeSyllabusItems here for root unless truly new and used for stats
+        }
+        newKnowledgeSyllabusOrder.push(rootItem);
+        const addedToOrderSet = new Set<string>();
+        addedToOrderSet.add(rootItem.id);
+
+        // Process Excel data to build the ordered syllabus
         newKnowledgeSyllabusJsonData.forEach(row => {
-                const categoryPath = row[SYLLABUS_HEADERS.CATEGORY]?.toString().trim();
+            const categoryPath = row[SYLLABUS_HEADERS.CATEGORY]?.toString().trim();
             const isLearnedInExcel = row[SYLLABUS_HEADERS.IS_LEARNED]?.toString().trim().toLowerCase() === '是';
 
-                if (categoryPath && categoryPath.toLowerCase() !== '顶级') {
+            if (categoryPath && categoryPath.toLowerCase() !== '顶级') {
                 const pathParts = categoryPath.split(SYLLABUS_PATH_SEPARATOR).map((part: string) => part.trim()).filter(Boolean);
                 let currentParentId: string | null = NEW_KNOWLEDGE_SYLLABUS_ROOT_ID;
                 
                 for (let i = 0; i < pathParts.length; i++) {
                     const partTitle = pathParts[i];
                     let foundItem: SyllabusItem | undefined;
-                    
-                    // Try to find an existing item by title and parentId in the consolidated map
-                    for (const item of newKnowledgeSyllabusMap.values()) {
-                        if (item.title.toLowerCase() === partTitle.toLowerCase() && item.parentId === currentParentId) {
-                            foundItem = item;
-                            break;
+                    const currentPathKey = `${partTitle.toLowerCase()}-${currentParentId || 'null'}`;
+                    const existingIdByPath = pathLookupMap.get(currentPathKey);
+
+                    if (existingIdByPath && newKnowledgeSyllabusMap.has(existingIdByPath)) {
+                        foundItem = newKnowledgeSyllabusMap.get(existingIdByPath);
+                        if (foundItem) {
+                            foundItem.isLearned = foundItem.isLearned || isLearnedInExcel; // Update isLearned from Excel
                         }
-                    }
-                    
-                    if (foundItem) {
-                        // If found, update its isLearned status if either source says true
-                        foundItem.isLearned = foundItem.isLearned || isLearnedInExcel;
                     } else {
-                        // If not found, create a new one
+                        // If not found by path, create a new one
                         const newId = generateId();
                         foundItem = { id: newId, title: partTitle, parentId: currentParentId, isLearned: false };
                         newKnowledgeSyllabusMap.set(newId, foundItem);
+                        pathLookupMap.set(currentPathKey, newId);
                         newlyCreatedNewKnowledgeSyllabusItems.push(foundItem);
                         stats.newCatsNew++;
                     }
-                    currentParentId = foundItem.id;
+                    currentParentId = foundItem!.id; // Use foundItem.id, it's guaranteed to be set
+
+                    // Add to ordered list if not already added. Ensure parents are added before children.
+                    if (foundItem && !addedToOrderSet.has(foundItem.id)) {
+                        newKnowledgeSyllabusOrder.push(foundItem);
+                        addedToOrderSet.add(foundItem.id);
+                    }
 
                     // Apply isLearned to the deepest category only from the Excel sheet when processing that specific row
                     if (i === pathParts.length - 1) {
-                        foundItem.isLearned = foundItem.isLearned || isLearnedInExcel; // Ensure isLearned is true if either is true
+                        if (foundItem) {
+                            foundItem.isLearned = foundItem.isLearned || isLearnedInExcel; 
+                        }
                     }
                 }
             }
         });
         
-        // Rebuild newKnowledgeSyllabusLookup from the consolidated map to maintain order and uniqueness
-        newKnowledgeSyllabusLookup.length = 0; // Clear existing content
-        
-        // First, add the root if it's not already there
-        if (!newKnowledgeSyllabusMap.has(NEW_KNOWLEDGE_SYLLABUS_ROOT_ID)) {
-            const rootItem = { id: NEW_KNOWLEDGE_SYLLABUS_ROOT_ID, title: '新知识体系根目录', parentId: null };
-            newKnowledgeSyllabusLookup.push(rootItem);
-            newKnowledgeSyllabusMap.set(NEW_KNOWLEDGE_SYLLABUS_ROOT_ID, rootItem); // Add to map for consistency
-        } else {
-            newKnowledgeSyllabusLookup.push(newKnowledgeSyllabusMap.get(NEW_KNOWLEDGE_SYLLABUS_ROOT_ID)!); // Add existing root
-        }
-
-        // Add existing syllabus items, maintaining their original order, if they are still in the map
-        existingNewKnowledgeSyllabus.forEach(item => {
-            if (item.id !== NEW_KNOWLEDGE_SYLLABUS_ROOT_ID && newKnowledgeSyllabusMap.has(item.id)) {
-                newKnowledgeSyllabusLookup.push(newKnowledgeSyllabusMap.get(item.id)!);
-                newKnowledgeSyllabusMap.delete(item.id); // Remove from map so only truly new ones remain
-            }
-        });
-
-        // Add any remaining (newly created from excel) items from the map
+        // Add any remaining existing items that were not processed/mentioned in the Excel import
         Array.from(newKnowledgeSyllabusMap.values())
-            .filter(item => item.id !== NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) // Exclude root, already handled
+            .filter(item => !addedToOrderSet.has(item.id)) // Only add if not already in the ordered list
             .forEach(item => {
-                newKnowledgeSyllabusLookup.push(item);
+                newKnowledgeSyllabusOrder.push(item);
             });
+        
+        // Finally, update newKnowledgeSyllabusLookup with the newly ordered list
+        newKnowledgeSyllabusLookup.length = 0; // Clear existing content
+        newKnowledgeSyllabusOrder.forEach(item => newKnowledgeSyllabusLookup.push(item));
 
         // Step 4: Process other new knowledge points sheets
         processKps(newKnowledgePointsJsonData, true);
