@@ -1106,6 +1106,7 @@ const App: React.FC = () => {
               onMarkCategoryAsLearned={handleMarkCategoryAsLearned}
               onMarkCategoryAsUnlearned={handleMarkCategoryAsUnlearned}
               onSyncSingleKnowledgePointToMain={syncSingleNewKnowledgeKpToMainSyllabus}
+              onDeleteSyllabusItemAndKnowledgePoints={deleteSyllabusItem}
             />
           )}
         </div>
