@@ -142,7 +142,7 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
     setIsDeleteConfirmOpen(false);
     setItemToDelete(null);
   };
-
+  
   const handleDeleteSyllabusItem = (id: string) => {
     const itemToDeleteFromState = syllabusItems.find(s=>s.id === id);
     if (!itemToDeleteFromState) return;
@@ -152,9 +152,9 @@ export const SyllabusManager: React.FC<SyllabusManagerProps> = ({
         openDeleteConfirmModal(id);
     } else {
         const confirmMessage = `您确定要删除此分类 "${itemToDeleteFromState.title}" 及其所有子分类吗？相关的知识点将变为未分类。此操作不可逆。`;
-        if (window.confirm(confirmMessage)) {
-          onDeleteItem(id);
-          if(selectedSyllabusId === id) onSelectSyllabusId(currentSubjectRootId);
+    if (window.confirm(confirmMessage)) {
+      onDeleteItem(id);
+      if(selectedSyllabusId === id) onSelectSyllabusId(currentSubjectRootId);
           closeModal(); // closeModal is for the edit modal, which is fine to call here.
         }
     }

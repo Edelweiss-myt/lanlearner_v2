@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { LearningItem, SyllabusItem, KnowledgePointItem } from '../../types';
 import { Button } from '../common/Button';
 import { formatDate, timeAgo } from '../../utils/dateUtils';
-import { SYLLABUS_PATH_SEPARATOR } from '../../constants'; // Removed SYLLABUS_ROOT_ID, NEW_KNOWLEDGE_SYLLABUS_ROOT_ID from here
+import { SYLLABUS_PATH_SEPARATOR, MAX_SRS_STAGE } from '../../constants'; // Removed SYLLABUS_ROOT_ID, NEW_KNOWLEDGE_SYLLABUS_ROOT_ID from here
 
 interface StudyItemCardProps {
   item: LearningItem;
@@ -37,6 +37,9 @@ export const StudyItemCard: React.FC<StudyItemCardProps> = ({
 }) => {
   const [showDetails, setShowDetails] = useState(!isReviewMode);
   const [showCategoryMove, setShowCategoryMove] = useState(false);
+
+  // Determine if the item is in a 'learned' state
+  const isLearned = item.srsStage === MAX_SRS_STAGE;
 
   const getSyllabusPathDisplay = (
     syllabusItemId: string | null,
@@ -112,7 +115,7 @@ export const StudyItemCard: React.FC<StudyItemCardProps> = ({
   const openMoveModal = () => setShowCategoryMove(prev => !prev);
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
+    <div className={`bg-white p-4 rounded-lg shadow border ${isLearned ? 'border-green-600 ring-1 ring-green-600' : 'border-gray-200'}`}>
       <div className="flex justify-between items-start mb-2">
         <div>
           {item.type === 'word' ? (

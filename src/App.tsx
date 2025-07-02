@@ -70,23 +70,13 @@ const App: React.FC = () => {
   [newKnowledgeSyllabus, primaryNewKnowledgeSubjectCategoryId]);
 
 
+  const [_isDarkMode, setIsDarkMode] = useState(false);
+  const [localStorageError, setLocalStorageError] = useState<string | null>(null);
+  
   useEffect(() => {
+    // This effect runs once on mount to check the user's system preference
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
-    const applyDarkMode = (matches: boolean) => {
-        if (matches) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-    };
-    
-    applyDarkMode(mediaQuery.matches);
-    
-    const handler = (e: MediaQueryListEvent) => applyDarkMode(e.matches);
-    mediaQuery.addEventListener('change', handler);
-    
-    return () => mediaQuery.removeEventListener('change', handler);
+    setIsDarkMode(mediaQuery.matches);
   }, []);
 
   useEffect(() => {
@@ -193,7 +183,16 @@ const App: React.FC = () => {
 
   const persistKnowledgePoints = useCallback((newKPs: KnowledgePointItem[]) => {
     setKnowledgePoints(newKPs);
-    storeData('knowledgePoints', newKPs);
+    try {
+      storeData('knowledgePoints', newKPs);
+      setLocalStorageError(null);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'LocalStorageQuotaExceeded') {
+        setLocalStorageError('本地存储空间不足，无法保存知识点。请清理一些旧数据或图片。');
+      } else {
+        throw error;
+      }
+    }
   }, []);
 
   const persistSyllabus = useCallback((newSyllabus: SyllabusItem[]) => {
@@ -211,7 +210,16 @@ const App: React.FC = () => {
 
   const persistNewKnowledgeKnowledgePoints = useCallback((updatedKPs: KnowledgePointItem[]) => {
     setNewKnowledgeKnowledgePoints(updatedKPs);
-    storeData('newKnowledgeKnowledgePoints', updatedKPs);
+    try {
+      storeData('newKnowledgeKnowledgePoints', updatedKPs);
+      setLocalStorageError(null);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'LocalStorageQuotaExceeded') {
+        setLocalStorageError('本地存储空间不足，无法保存新知识点。请清理一些旧数据或图片。');
+      } else {
+        throw error;
+      }
+    }
   }, []);
 
   const persistPrimaryNewKnowledgeSubjectCategoryId = useCallback((subjectCategoryId: string | null) => {
@@ -305,9 +313,12 @@ const App: React.FC = () => {
     storeData('selectedEbookForLookupId', id);
   }, []);
 
-  const persistRecentlyDeletedItems = useCallback((updatedItems: RecentlyDeletedItem[]) => {
-    setRecentlyDeletedItems(updatedItems);
-    storeData('recentlyDeleted', updatedItems);
+  const persistRecentlyDeletedItems = useCallback((itemToAdd: RecentlyDeletedItem) => {
+    setRecentlyDeletedItems(prevItems => {
+        const newItems = [...prevItems, itemToAdd];
+        storeData('recentlyDeleted', newItems);
+        return newItems;
+    });
   }, []);
 
 
@@ -400,12 +411,12 @@ const App: React.FC = () => {
 
     if (isNewKnowledgeContext) {
         if (kp.syllabusItemId) {
-            let current: SyllabusItem | undefined = newKnowledgeSyllabus.find(s => s.id === kp.syllabusItemId);
-            while (current && current.parentId !== NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
-                current = newKnowledgeSyllabus.find(s => s.id === current!.parentId);
-            }
-            if (current && current.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
-                topLevelSubjectCatId = current.id;
+        let current: SyllabusItem | undefined = newKnowledgeSyllabus.find(s => s.id === kp.syllabusItemId);
+        while (current && current.parentId !== NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
+            current = newKnowledgeSyllabus.find(s => s.id === current!.parentId);
+        }
+        if (current && current.parentId === NEW_KNOWLEDGE_SYLLABUS_ROOT_ID) {
+            topLevelSubjectCatId = current.id;
             }
         } else if (primaryNewKnowledgeSubjectCategoryId) {
             topLevelSubjectCatId = primaryNewKnowledgeSubjectCategoryId;
@@ -505,15 +516,15 @@ const App: React.FC = () => {
           }
         }
 
-        if (itemToDelete) {
+        if (itemToDelete && !confirmed) { // Only add to recently deleted if not part of a confirmed batch deletion
           const newRecentlyDeletedItem: RecentlyDeletedItem = {
             item: itemToDelete,
             deletedAt: new Date().toISOString(),
           };
-          persistRecentlyDeletedItems([...recentlyDeletedItems, newRecentlyDeletedItem]);
+          persistRecentlyDeletedItems(newRecentlyDeletedItem);
         }
     }
-  }, [words, knowledgePoints, newKnowledgeKnowledgePoints, recentlyDeletedItems, persistWords, persistKnowledgePoints, persistNewKnowledgeKnowledgePoints, persistRecentlyDeletedItems]);
+  }, [words, knowledgePoints, newKnowledgeKnowledgePoints, persistWords, persistKnowledgePoints, persistNewKnowledgeKnowledgePoints, persistRecentlyDeletedItems]);
 
   const restoreStudyItem = useCallback((deletedItemRecord: RecentlyDeletedItem) => {
     const { item } = deletedItemRecord;
@@ -558,8 +569,13 @@ const App: React.FC = () => {
         }
       }
     }
-    persistRecentlyDeletedItems(recentlyDeletedItems.filter(rd => rd.item.id !== item.id));
-  }, [words, knowledgePoints, newKnowledgeKnowledgePoints, newKnowledgeSyllabus, recentlyDeletedItems, persistWords, persistKnowledgePoints, persistNewKnowledgeKnowledgePoints, persistRecentlyDeletedItems]);
+    // Filter out the restored item from recentlyDeletedItems
+    setRecentlyDeletedItems(prevItems => {
+        const updatedItems = prevItems.filter(rd => rd.item.id !== item.id);
+        storeData('recentlyDeleted', updatedItems);
+        return updatedItems;
+    });
+  }, [words, knowledgePoints, newKnowledgeKnowledgePoints, newKnowledgeSyllabus, persistWords, persistKnowledgePoints, persistNewKnowledgeKnowledgePoints]);
 
 
   const handleMoveKnowledgePointCategory = useCallback((itemId: string, newSyllabusId: string | null, isNewKnowledgeContext: boolean = false) => {
@@ -610,9 +626,20 @@ const App: React.FC = () => {
     
     const kpsToDelete = newKnowledgeKnowledgePoints.filter(kp => kp.syllabusItemId && allIdsToDelete.includes(kp.syllabusItemId));
     
-    // Use the existing deleteStudyItem function to handle each KP deletion.
-    // This ensures they are properly added to the "recently deleted" list.
-    kpsToDelete.forEach(kp => deleteStudyItem(kp.id, 'knowledge', true));
+    // First, process KPs to delete and add them to recently deleted
+    const updatedNewKnowledgeKnowledgePoints = newKnowledgeKnowledgePoints.filter(kp => {
+        const shouldDelete = kp.syllabusItemId && allIdsToDelete.includes(kp.syllabusItemId);
+        if (shouldDelete) {
+            const newRecentlyDeletedItem: RecentlyDeletedItem = {
+                item: kp,
+                deletedAt: new Date().toISOString(),
+            };
+            persistRecentlyDeletedItems(newRecentlyDeletedItem); // Add each deleted KP
+        }
+        return !shouldDelete;
+    });
+
+    persistNewKnowledgeKnowledgePoints(updatedNewKnowledgeKnowledgePoints);
 
     // Now, just delete the syllabus categories.
     const syllabusToKeep = newKnowledgeSyllabus.filter(s => !allIdsToDelete.includes(s.id));
@@ -622,7 +649,7 @@ const App: React.FC = () => {
     if (currentLearningPlan && allIdsToDelete.includes(currentLearningPlan.categoryId)) {
       handleSetCurrentLearningPlan(null);
     }
-  }, [newKnowledgeSyllabus, newKnowledgeKnowledgePoints, persistNewKnowledgeSyllabus, currentLearningPlan, handleSetCurrentLearningPlan, getChildrenRecursive, deleteStudyItem]);
+  }, [newKnowledgeSyllabus, newKnowledgeKnowledgePoints, persistNewKnowledgeSyllabus, currentLearningPlan, handleSetCurrentLearningPlan, getChildrenRecursive, persistRecentlyDeletedItems]);
 
 
   const deleteSyllabusItem = useCallback((itemId: string, isNewKnowledgeContext: boolean = false) => {
@@ -634,7 +661,7 @@ const App: React.FC = () => {
     
     const descendants = getChildrenRecursive(itemId, targetSyllabus);
     const allIdsToDelete = [itemId, ...descendants];
-
+    
     const updatedKps = kpsToUpdateList.map(kp => {
         if (kp.syllabusItemId && allIdsToDelete.includes(kp.syllabusItemId)) {
             // For new knowledge KPs, also clear subjectId as they become "homeless"
@@ -642,7 +669,7 @@ const App: React.FC = () => {
         }
         return kp;
     });
-
+    
     const updatedSyllabus = targetSyllabus.filter(s => !allIdsToDelete.includes(s.id));
     
     persistTargetSyllabus(updatedSyllabus);
@@ -871,6 +898,8 @@ const App: React.FC = () => {
         importedNewKnowledgePoints,
         newlyCreatedMainSyllabusItems,
         newlyCreatedNewKnowledgeSyllabusItems,
+        updatedMainSyllabus,
+        updatedNewKnowledgeSyllabus,
         message 
       } = await importDataFromExcel(
         file, 
@@ -883,23 +912,22 @@ const App: React.FC = () => {
       );
 
       if (newlyCreatedMainSyllabusItems.length > 0) {
+        // These are genuinely new syllabus items, so add them.
         persistSyllabus([...syllabus, ...newlyCreatedMainSyllabusItems]);
       }
       if (newlyCreatedNewKnowledgeSyllabusItems.length > 0) {
+        // These are genuinely new syllabus items, so add them.
         persistNewKnowledgeSyllabus([...newKnowledgeSyllabus, ...newlyCreatedNewKnowledgeSyllabusItems]);
       }
 
-      if (importedWords.length > 0) {
-        persistWords([...words, ...importedWords]);
-      }
-      if (importedMainKnowledgePoints.length > 0) {
-        const newKpsWithMasterId = importedMainKnowledgePoints.map(kp => ({...kp, masterId: kp.id}));
-        persistKnowledgePoints([...knowledgePoints, ...newKpsWithMasterId]);
-      }
-      if (importedNewKnowledgePoints.length > 0) {
-        const newKpsWithMasterId = importedNewKnowledgePoints.map(kp => ({...kp, masterId: kp.id}));
-        persistNewKnowledgeKnowledgePoints([...newKnowledgeKnowledgePoints, ...newKpsWithMasterId]);
-      }
+      // Directly set the state with the merged and updated lists returned from the import function
+      persistWords(importedWords);
+      persistKnowledgePoints(importedMainKnowledgePoints);
+      persistNewKnowledgeKnowledgePoints(importedNewKnowledgePoints);
+      
+      // Update syllabuses directly with the comprehensive lists returned from import function
+      persistSyllabus(updatedMainSyllabus);
+      persistNewKnowledgeSyllabus(updatedNewKnowledgeSyllabus);
       
       setImportMessage(message);
       
@@ -1146,6 +1174,15 @@ const App: React.FC = () => {
         </div>
         {importMessage && <p className={`text-sm mb-1 ${importMessage.includes('失败') || importMessage.includes('错误') ? 'text-red-500' : 'text-green-600'}`}>{importMessage}</p>}
         {notionExportMessage && <p className={`text-sm mb-1 ${notionExportMessage.includes('失败') || notionExportMessage.includes('错误') || notionExportMessage.includes('not configured') ? 'text-red-500' : 'text-green-600'}`}>{notionExportMessage}</p>}
+        {localStorageError && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mx-4 mt-4" role="alert">
+            <strong className="font-bold">错误:</strong>
+            <span className="block sm:inline"> {localStorageError}</span>
+            <span className="absolute top-0 bottom-0 right-0 px-4 py-3">
+              <svg className="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" onClick={() => setLocalStorageError(null)}><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.103l-2.651 3.746a1.2 1.2 0 1 1-1.697-1.697l3.746-2.651-3.746-2.651a1.2 1.2 0 0 1 1.697-1.697L10 8.897l2.651-3.746a1.2 1.2 0 0 1 1.697 1.697L11.103 10l3.746 2.651a1.2 1.2 0 0 1 0 1.698z"/></svg>
+            </span>
+          </div>
+        )}
         <div>© {new Date().getFullYear()} Lanlearner</div>
       </footer>
       {editingKnowledgePoint && isEditKpModalOpen && (

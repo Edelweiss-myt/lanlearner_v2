@@ -30,6 +30,52 @@ export const KnowledgePointInputForm: React.FC<KnowledgePointInputFormProps> = (
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Function to compress image
+  const compressImage = async (dataUrl: string, maxSizeKB: number): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = dataUrl;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        const MAX_WIDTH = 800; // Define max width for compressed image
+        const MAX_HEIGHT = 800; // Define max height for compressed image
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        let quality = 0.8; // Initial quality
+        let compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+
+        // Compress until size is under maxSizeKB or quality is too low
+        while (compressedDataUrl.length * 0.75 / 1024 > maxSizeKB && quality > 0.1) {
+          quality -= 0.05;
+          compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+        resolve(compressedDataUrl);
+      };
+      img.onerror = () => {
+        resolve(dataUrl); // In case of error, return original
+      };
+    });
+  };
+
   useEffect(() => {
     setSelectedSyllabusId(preferredSyllabusId || null);
   }, [preferredSyllabusId]);
@@ -40,13 +86,30 @@ export const KnowledgePointInputForm: React.FC<KnowledgePointInputFormProps> = (
     }
   }, [syllabusRootId, syllabusItems, activeNewSubjectNameProp, preferredSyllabusId]);
 
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageUrl(reader.result as string);
+      reader.onloadend = async () => {
+        const originalDataUrl = reader.result as string;
+        // Check file size before compression
+        const originalSizeKB = originalDataUrl.length * 0.75 / 1024; // Base64 to KB approximation
+        console.log(`Original image size: ${originalSizeKB.toFixed(2)} KB`);
+
+        if (originalSizeKB > 100) { // Only compress if larger than 100KB (0.1MB)
+          try {
+            const compressedDataUrl = await compressImage(originalDataUrl, 100); // Compress to 100KB
+            const compressedSizeKB = compressedDataUrl.length * 0.75 / 1024;
+            console.log(`Compressed image size: ${compressedSizeKB.toFixed(2)} KB`);
+            setImageUrl(compressedDataUrl);
+          } catch (e) {
+            console.error("Error compressing image, using original:", e);
+            setImageUrl(originalDataUrl);
+          }
+        } else {
+          setImageUrl(originalDataUrl);
+        }
+        
         const extension = file.name.slice(file.name.lastIndexOf('.'));
         setImageExtension(extension);
       };

@@ -65,3 +65,5 @@ v2.1
 5. 一级目录为Page name，二级为Heading_1，三级为Heading_2，知识点标题为Heading_3 ...
 6. 添加“搭建新体系”下，“已学”功能，显示学习进度
 7. 数据保护：添加‘最近删除’功能（v2.1）
+8. 增加‘图片’功能：上传后自动压缩至0.1M保存在localstorage，导入notion_toggle
+9. Localstorage满额时，报错
