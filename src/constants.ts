@@ -17,7 +17,7 @@ export const SRS_INTERVALS_DAYS: { [key: number]: number } = {
 
 export const MAX_SRS_STAGE = Object.keys(SRS_INTERVALS_DAYS).length -1; // This will be 4
 
-export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash-preview-04-17';
+export const GEMINI_MODEL_TEXT = 'gemini-1.5-flash';
 
 export const SYLLABUS_ROOT_ID = 'root'; // For the main syllabus
 

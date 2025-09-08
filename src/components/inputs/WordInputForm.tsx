@@ -11,6 +11,7 @@ interface WordInputFormProps {
   ebooks: Ebook[];
   selectedEbookForLookupId: string | null;
   onSelectEbookForLookup: (ebookId: string | null) => void;
+  existingWords: WordItem[];
 }
 
 const API_LOOKUP_TIMEOUT_MS = 4000; // 4 seconds
@@ -19,7 +20,8 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({
   onAddWord,
   ebooks,
   selectedEbookForLookupId,
-  onSelectEbookForLookup
+  onSelectEbookForLookup,
+  existingWords
 }) => {
   const [wordText, setWordText] = useState('');
   const [currentDefinition, setCurrentDefinition] = useState<WordDefinition | null>(null);
@@ -39,6 +41,10 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({
 
   // This state will hold the example sentence that is displayed and edited by the user.
   const [displayExampleSentence, setDisplayExampleSentence] = useState('');
+  
+  // State to track existing word information
+  const [existingWord, setExistingWord] = useState<WordItem | null>(null);
+  const [showExistingWordInfo, setShowExistingWordInfo] = useState(false);
 
 
   const clearFormStates = (clearWord: boolean = true) => {
@@ -49,6 +55,8 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({
     setDisplayExampleSentence('');
     clearManualFields();
     setAllowManualInput(false);
+    setExistingWord(null);
+    setShowExistingWordInfo(false);
     if (timeoutIdRef.current) {
       clearTimeout(timeoutIdRef.current);
       timeoutIdRef.current = null;
@@ -61,9 +69,33 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({
     // setManualExample(''); // REMOVED - Unused
   };
 
+  // Function to check for existing word
+  const checkExistingWord = (word: string) => {
+    const trimmedWord = word.trim().toLowerCase();
+    if (trimmedWord) {
+      const found = existingWords.find(w => w.text.toLowerCase() === trimmedWord);
+      if (found) {
+        setExistingWord(found);
+        setShowExistingWordInfo(true);
+        // Pre-fill form with existing data
+        setNotes(found.notes || '');
+        setDisplayExampleSentence(found.exampleSentence || '');
+      } else {
+        setExistingWord(null);
+        setShowExistingWordInfo(false);
+      }
+    } else {
+      setExistingWord(null);
+      setShowExistingWordInfo(false);
+    }
+  };
+
   useEffect(() => {
     const trimmedWord = wordText.trim();
     let ebookStatus = "";
+
+    // Check for existing word
+    checkExistingWord(trimmedWord);
 
     if (!trimmedWord || !selectedEbookForLookupId) {
       setEbookExampleSentences([]);
@@ -320,6 +352,38 @@ export const WordInputForm: React.FC<WordInputFormProps> = ({
             </Button>
           </div>
         </div>
+
+        {/* Display existing word information */}
+        {showExistingWordInfo && existingWord && (
+          <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium text-blue-800">已保存的单词信息</h4>
+              <span className="text-xs text-blue-600">再次添加将覆盖原数据</span>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="font-medium text-blue-700">释义：</span>
+                <span className="text-blue-600">{existingWord.definition}</span>
+              </div>
+              <div>
+                <span className="font-medium text-blue-700">词性：</span>
+                <span className="text-blue-600">{existingWord.partOfSpeech}</span>
+              </div>
+              {existingWord.exampleSentence && (
+                <div>
+                  <span className="font-medium text-blue-700">例句：</span>
+                  <span className="text-blue-600">{existingWord.exampleSentence}</span>
+                </div>
+              )}
+              {existingWord.notes && (
+                <div>
+                  <span className="font-medium text-blue-700">备注：</span>
+                  <span className="text-blue-600">{existingWord.notes}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="mt-2">
             <label htmlFor="ebook-select" className="block text-sm font-medium text-gray-700 mb-1">

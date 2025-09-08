@@ -383,16 +383,37 @@ const App: React.FC = () => {
 
 
   const addWord = useCallback((word: Omit<WordItem, 'id' | 'createdAt' | 'lastReviewedAt' | 'nextReviewAt' | 'srsStage' | 'type'>) => {
-    const newWord: WordItem = {
-      ...word,
-      id: generateId(),
-      type: 'word',
-      createdAt: new Date().toISOString(),
-      lastReviewedAt: null,
-      nextReviewAt: addDays(getTodayDateString(), SRS_INTERVALS_DAYS[0]).toISOString(),
-      srsStage: 0,
-    };
-    persistWords([...words, newWord]);
+    // 检查是否已存在相同单词（不区分大小写）
+    const existingWordIndex = words.findIndex(w => w.text.toLowerCase() === word.text.toLowerCase());
+    
+    if (existingWordIndex !== -1) {
+      // 如果单词已存在，更新现有单词的数据，但保留SRS相关字段
+      const existingWord = words[existingWordIndex];
+      const updatedWord: WordItem = {
+        ...existingWord, // 保留原有的id, createdAt, lastReviewedAt, nextReviewAt, srsStage
+        text: word.text,
+        definition: word.definition,
+        partOfSpeech: word.partOfSpeech,
+        exampleSentence: word.exampleSentence,
+        notes: word.notes,
+      };
+      
+      const updatedWords = [...words];
+      updatedWords[existingWordIndex] = updatedWord;
+      persistWords(updatedWords);
+    } else {
+      // 如果单词不存在，添加新单词
+      const newWord: WordItem = {
+        ...word,
+        id: generateId(),
+        type: 'word',
+        createdAt: new Date().toISOString(),
+        lastReviewedAt: null,
+        nextReviewAt: addDays(getTodayDateString(), SRS_INTERVALS_DAYS[0]).toISOString(),
+        srsStage: 0,
+      };
+      persistWords([...words, newWord]);
+    }
   }, [words, persistWords]);
 
   const getChildrenRecursive = (parentId: string, syllabus: SyllabusItem[]): string[] => {
@@ -1070,6 +1091,7 @@ const App: React.FC = () => {
                 ebooks={ebooks}
                 selectedEbookForLookupId={selectedEbookForLookupId}
                 onSelectEbookForLookup={handleSelectEbookForLookup}
+                existingWords={words}
               />
               <KnowledgePointInputForm
                 onAddKnowledgePoint={(kp) => addKnowledgePoint(kp,false)}
